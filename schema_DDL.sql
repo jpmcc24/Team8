@@ -10,6 +10,7 @@ CREATE TABLE vehicles (
     year INT NOT NULL,
     make VARCHAR(100) NOT NULL,
     model VARCHAR(100) NOT NULL,
+    type VARCHAR(50),
     current_mileage INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_email) REFERENCES user(email)
@@ -22,6 +23,7 @@ CREATE TABLE maintenance_log (
     date DATE NOT NULL,
     mileage INT NOT NULL,
     cost DECIMAL(8,2),
+    location VARCHAR(255),
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
