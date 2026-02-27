@@ -69,5 +69,38 @@ const DataModel = (function () {
 
         //ADD MORE FUNCTIONS HERE TO FETCH DATA FROM THE SERVER
         //AND SEND DATA TO THE SERVER AS NEEDED
+
+
+        
+        ///////////////////////////////////// NEW ////////////////////////////////////////////
+
+        getCurrentUser: async function () {
+            if (!token) {
+                console.error("Token is not set.");
+                return null;
+            }
+
+            try {
+                const response = await fetch('/api/users/me', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': token,
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                if (!response.ok) {
+                    console.error("Error fetching current user:", await response.json());
+                    return null;
+                }
+
+                return await response.json();
+
+            } catch (error) {
+                console.error("Error in API call:", error);
+                return null;
+            }
+        }
+        
     };
 })();

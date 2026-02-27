@@ -56,6 +56,25 @@ h1 {
     background-color: #218838; /* Slightly darker green for hover effect */
 }
 
+
+/********************************** NEW ************************************/
+/*************************** ACCOUNT BUTTON CSS ****************************/
+
+#accountButton {
+    padding: 10px 20px;
+    background-color: #5caacc;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+#accountButton:hover {
+    background-color: #487da3;
+}
+
+/**************************************************************************/
+
 .user-list {
     margin-top: 20px;
 }

@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     //////////////////////////////////////////
     const logoutButton = document.getElementById('logoutButton');
     const refreshButton = document.getElementById('refreshButton');
+    const accountButton = document.getElementById('accountButton'); //NEW CHANGE//
     //////////////////////////////////////////
     //END ELEMENTS TO ATTACH EVENT LISTENERS
     //////////////////////////////////////////
@@ -32,6 +33,17 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshButton.addEventListener('click', async () => {
         renderUserList();
     });
+
+
+
+
+    /////////////// NEW CHANGE ////////////////////
+    accountButton.addEventListener('click', () => {
+    window.location.href = '/account';
+    });
+
+
+
     //////////////////////////////////////////
     //END EVENT LISTENERS
     //////////////////////////////////////////

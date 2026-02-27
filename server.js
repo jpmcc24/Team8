@@ -25,6 +25,15 @@ app.get('/', (req, res) => {
 app.get('/dashboard', (req, res) => {
     res.sendFile(__dirname + '/public/dashboard.html');
 });
+
+///////////////////////// NEW ///////////////////////
+// Route to serve account.html
+app.get('/account', (req, res) => {
+    res.sendFile(__dirname + '/public/account.html');
+});
+
+
+
 //////////////////////////////////////
 //END ROUTES TO SERVE HTML FILES
 //////////////////////////////////////
@@ -175,6 +184,23 @@ app.get('/api/users', authenticateToken, async (req, res) => {
         res.status(500).json({ message: 'Error retrieving email addresses.' });
     }
 });
+
+
+////////////////////// NEW // Route: Account ///////////////////////////////
+app.get('/api/users/me', authenticateToken, async (req, res) => {
+    try {
+        // The email was already verified in authenticateToken
+        const email = req.user.email;
+
+        res.status(200).json({ email });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error retrieving user data.' });
+    }
+});
+///////////////////////////////////////////////////////////////////////////
+
+
 //////////////////////////////////////
 //END ROUTES TO HANDLE API REQUESTS
 //////////////////////////////////////
