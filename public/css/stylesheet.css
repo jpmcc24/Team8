@@ -1,0 +1,324 @@
+/* ============================================================
+   AUTOTRACK — UNIFIED STYLESHEET
+   Used by: logon.html, dashboard.html
+   ============================================================ */
+
+:root {
+  --bg:           #f4f4f4;
+  --surface:      #ffffff;
+  --surface2:     #f0f0f0;
+  --border:       #dddddd;
+  --accent:       #007bff;
+  --accent-hover: #0056b3;
+  --danger:       #dc3545;
+  --success:      #28a745;
+  --text:         #333333;
+  --text-muted:   #666666;
+  --radius:       8px;
+  --font:         Arial, sans-serif;
+  --shadow:       0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background-color: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ── FORMS ── */
+.form-group { margin-bottom: 14px; }
+
+label {
+  display: block;
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  background-color: var(--surface);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input::placeholder, textarea::placeholder { color: var(--text-muted); }
+textarea { resize: vertical; min-height: 80px; }
+
+/* ── BUTTONS ── */
+button {
+  font-family: var(--font);
+  cursor: pointer;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  padding: 10px 20px;
+  transition: background-color 0.2s;
+}
+
+.btn-primary { background-color: var(--accent); color: white; }
+.btn-primary:hover { background-color: var(--accent-hover); }
+
+.btn-success { background-color: var(--success); color: white; }
+.btn-success:hover { background-color: #1e7e34; }
+
+.btn-danger { background-color: var(--danger); color: white; }
+.btn-danger:hover { background-color: #a71d2a; }
+
+.btn-secondary { background-color: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background-color: var(--border); }
+
+.btn-small { padding: 5px 12px; font-size: 12px; }
+
+/* ── MESSAGES ── */
+.message { margin-top: 10px; font-size: 14px; text-align: center; }
+.success  { color: var(--success); }
+.error    { color: var(--danger); }
+
+/* ── SECTION CARD ── */
+.section-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.section-card h3 {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+/* ── TABLE ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+.data-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background-color: var(--surface2);
+  border-bottom: 2px solid var(--border);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.data-table td { padding: 10px; border-bottom: 1px solid var(--border); }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background-color: var(--surface2); }
+
+/* ── EMPTY / LOADING ── */
+.empty-state, .loading-message {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── GRIDS ── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.form-row   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.form-actions { display: flex; gap: 8px; margin-top: 10px; }
+
+/* ── STAT ROW ── */
+.stat-row { display: flex; gap: 16px; margin-bottom: 20px; }
+
+.stat-box {
+  flex: 1;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+}
+.stat-box .stat-value { font-size: 26px; font-weight: bold; color: var(--accent); }
+.stat-box .stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+/* ── VEHICLE CARDS ── */
+.vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.vehicle-card {
+  background-color: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.vehicle-card:hover { border-color: var(--accent); }
+.vehicle-card.selected { border-color: var(--accent); background-color: #e8f0fe; }
+.vehicle-card .vehicle-year  { font-size: 12px; color: var(--text-muted); }
+.vehicle-card .vehicle-name  { font-size: 16px; font-weight: bold; margin: 2px 0 4px; }
+.vehicle-card .vehicle-miles { font-size: 12px; color: var(--text-muted); }
+
+/* ── VEHICLE SELECTOR BAR ── */
+.vehicle-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 18px;
+}
+.vehicle-selector label { margin-bottom: 0; white-space: nowrap; }
+.vehicle-selector select { width: auto; }
+
+/* ── COST ROWS ── */
+.cost-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.cost-row:last-child { border-bottom: none; }
+.cost-amount { font-weight: bold; color: var(--accent); }
+
+/* ── REMINDER URGENCY ── */
+.reminder-overdue { border-left: 4px solid var(--danger)  !important; }
+.reminder-soon    { border-left: 4px solid #ffc107        !important; }
+.reminder-ok      { border-left: 4px solid var(--success) !important; }
+
+/* ============================================================
+   LOGON PAGE
+   ============================================================ */
+
+.logon-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+.logon-container {
+  width: 100%;
+  max-width: 400px;
+  padding: 30px;
+  background-color: var(--surface);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+.logon-container h1 {
+  text-align: center;
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+.tab {
+  display: flex;
+  margin-bottom: 20px;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  cursor: pointer;
+  background-color: var(--surface2);
+  font-size: 14px;
+  color: var(--text-muted);
+  border-bottom: 2px solid var(--border);
+}
+
+.tab-button.active {
+  background-color: var(--accent);
+  color: white;
+  border-bottom-color: var(--accent);
+}
+
+form { display: none; }
+form.active-form { display: block; }
+
+.logon-container button[type="submit"] { width: 100%; margin-top: 6px; }
+
+/* ============================================================
+   DASHBOARD PAGE
+   ============================================================ */
+
+.dashboard-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--surface);
+  padding: 0 30px;
+  height: 56px;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header h1 { font-size: 20px; font-weight: bold; }
+
+.header-buttons { display: flex; gap: 10px; }
+
+/* ── NAV TABS ── */
+.nav-tabs {
+  display: flex;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 30px;
+  gap: 2px;
+}
+
+.nav-tab {
+  padding: 12px 18px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: -1px;
+}
+.nav-tab:hover { color: var(--text); background-color: var(--surface2); }
+.nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── MAIN CONTENT ── */
+.main-content {
+  flex: 1;
+  padding: 24px 30px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ── SECTIONS ── */
+.section { display: none; }
+.section.active { display: block; }
+
+.section-header { margin-bottom: 20px; }
+.section-header h2 { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+.section-header p  { font-size: 14px; color: var(--text-muted); }
