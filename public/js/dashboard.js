@@ -22,8 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
     //////////////////////////////////////////
     // ELEMENTS
     //////////////////////////////////////////
-    const logoutButton = document.getElementById('logoutButton');
-    const navTabs      = document.querySelectorAll('.nav-tab');
+    const logoutButton  = document.getElementById('logoutButton');
+    const accountButton = document.getElementById('accountButton');
+    const navTabs       = document.querySelectorAll('.nav-tab');
 
     //////////////////////////////////////////
     // NAV TAB SWITCHING
@@ -48,6 +49,13 @@ document.addEventListener('DOMContentLoaded', () => {
     logoutButton.addEventListener('click', () => {
         localStorage.removeItem('jwtToken');
         window.location.href = '/';
+    });
+
+    //////////////////////////////////////////
+    // ACCOUNT PAGE
+    //////////////////////////////////////////
+    accountButton.addEventListener('click', () => {
+        window.location.href = '/account';
     });
 
     //////////////////////////////////////////
