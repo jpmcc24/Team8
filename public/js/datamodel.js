@@ -72,7 +72,7 @@ const DataModel = (function () {
 
 
         
-        ///////////////////////////////////// NEW ////////////////////////////////////////////
+// getCurrentUser — fetches the logged in user's info from the server
 
         getCurrentUser: async function () {
             if (!token) {
