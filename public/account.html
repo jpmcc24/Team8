@@ -3,37 +3,31 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AutoTrack Account</title>
+  <title>AutoTrack — My Account</title>
   <link rel="stylesheet" href="/css/stylesheet.css"/>
 </head>
 <body>
-    <div class="header">
-      <h1>My Account</h1>
-      <div>
-        <button id="dashboardButton" class="btn-success">Back to Dashboard</button>
-        <button id="logoutButton" class="btn-primary">Logout</button>
-      </div>
-    </div>
-    <div class="container-account">
-        <h1>Account Profile</h1>
-        
-        <div class="profile-item">
-            <label>User ID:</label>
-            <span>12345</span>
-        </div>
 
-        <div class="profile-item">
-            <label>Email Address:</label>
-            <p><span id="userEmail">Placeholder@gmail.com</span></p>
-        </div>
-
-        <br>
-        <button>Edit Profile</button>
-        <button id="deleteAccountButton" class="btn-primary">Delete Account</button>
+  <div class="header">
+    <h1>AutoTrack</h1>
+    <div class="header-buttons">
+      <button id="dashboardButton" class="btn-success">Back to Dashboard</button>
+      <button id="logoutButton" class="btn-danger">Logout</button>
     </div>
+  </div>
+
+  <div class="container">
+    <h2 style="margin-bottom: 20px;">Account Profile</h2>
+
+    <div class="profile-item">
+      <label>Email Address</label>
+      <span id="userEmail">—</span>
+    </div>
+
+  </div>
+
   <script src="/js/datamodel.js"></script>
   <script src="/js/account.js"></script>
-  <script src="/js/server.js"></script>
 
 </body>
 </html>

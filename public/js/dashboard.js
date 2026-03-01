@@ -22,23 +22,23 @@ document.addEventListener('DOMContentLoaded', () => {
     //////////////////////////////////////////
     // ELEMENTS
     //////////////////////////////////////////
-    const logoutButton  = document.getElementById('logoutButton');
-    const accountButton = document.getElementById('accountButton');
-    const navTabs       = document.querySelectorAll('.nav-tab');
+    const logoutButton = document.getElementById('logoutButton');
+    const navItems     = document.querySelectorAll('.nav-item');
 
     //////////////////////////////////////////
-    // NAV TAB SWITCHING
+    // SIDEBAR NAV SWITCHING
     //////////////////////////////////////////
-    navTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            const target = tab.getAttribute('data-section');
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const target = item.getAttribute('data-section');
+            if (!target) return;
 
-            // Deactivate all tabs and sections
-            navTabs.forEach(t => t.classList.remove('active'));
+            // Deactivate all nav items and sections
+            navItems.forEach(n => n.classList.remove('active'));
             document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
 
             // Activate selected
-            tab.classList.add('active');
+            item.classList.add('active');
             document.getElementById(target).classList.add('active');
         });
     });
@@ -52,15 +52,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     //////////////////////////////////////////
-    // ACCOUNT PAGE
+    // ACCOUNT / PROFILE NAV
     //////////////////////////////////////////
-    accountButton.addEventListener('click', () => {
+    document.getElementById('accountNavItem').addEventListener('click', () => {
         window.location.href = '/account';
     });
 
     //////////////////////////////////////////
     // INITIAL PAGE LOAD
-    // Demonstrate a protected route call on load
+    // Fetch current user and display email in header
+    // Also demonstrates a protected route call on load
     //////////////////////////////////////////
     renderUserDisplay();
 
@@ -70,17 +71,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // -- VEHICLES --
     // document.getElementById('addVehicleBtn').addEventListener('click', handleAddVehicle);
+    // document.getElementById('showAddVehicleBtn').addEventListener('click', handleShowAddVehicleForm);
+    // document.getElementById('cancelAddVehicleBtn').addEventListener('click', handleCancelAddVehicle);
 
     // -- MAINTENANCE --
     // document.getElementById('addMaintenanceBtn').addEventListener('click', handleAddMaintenance);
+    // document.getElementById('showAddMaintenanceBtn').addEventListener('click', handleShowAddMaintenanceForm);
     // document.getElementById('maintenanceVehicleSelect').addEventListener('change', handleMaintenanceVehicleChange);
 
     // -- REMINDERS --
     // document.getElementById('addReminderBtn').addEventListener('click', handleAddReminder);
+    // document.getElementById('showAddReminderBtn').addEventListener('click', handleShowAddReminderForm);
     // document.getElementById('remindersVehicleSelect').addEventListener('change', handleRemindersVehicleChange);
 
     // -- FUEL --
     // document.getElementById('addFuelBtn').addEventListener('click', handleAddFuel);
+    // document.getElementById('showAddFuelBtn').addEventListener('click', handleShowAddFuelForm);
     // document.getElementById('fuelVehicleSelect').addEventListener('change', handleFuelVehicleChange);
 
     // -- COSTS --
@@ -93,14 +99,23 @@ document.addEventListener('DOMContentLoaded', () => {
 // FUNCTIONS TO MANIPULATE THE DOM
 ////////////////////////////////////////////////////////////////
 
-// Shows the logged-in user's email in the header
-// Also demonstrates a protected route call (GET /api/users)
+// Fetches the current logged in user and displays their email in the header
+// Uses getCurrentUser() which calls the protected GET /api/users/me route
 async function renderUserDisplay() {
-    const users = await DataModel.getUsers();
     const usernameDisplay = document.getElementById('usernameDisplay');
-    if (usernameDisplay && users.length > 0) {
-        // Just confirm the token works — future sprints will show the actual username
-        usernameDisplay.textContent = 'Logged in';
+    if (!usernameDisplay) return;
+
+    try {
+        const user = await DataModel.getCurrentUser();
+        if (user && user.email) {
+            usernameDisplay.textContent = user.email;
+        }
+    } catch (error) {
+        // Fall back to getUsers() to confirm token is valid
+        const users = await DataModel.getUsers();
+        if (users.length > 0) {
+            usernameDisplay.textContent = 'Logged in';
+        }
     }
 }
 
@@ -115,7 +130,7 @@ async function renderUserDisplay() {
 //     const vehicles = await DataModel.getVehicles();
 //     vehicleList.innerHTML = '';
 //     if (vehicles.length === 0) {
-//         vehicleList.innerHTML = '<div class="empty-state">No vehicles added yet.</div>';
+//         vehicleList.innerHTML = '<div class="empty-state"><div class="empty-title">No vehicles yet</div><p>Click Add Vehicle to get started.</p></div>';
 //         return;
 //     }
 //     vehicles.forEach(vehicle => {
@@ -137,7 +152,7 @@ async function renderUserDisplay() {
 //     const records = await DataModel.getMaintenanceLog(vehicleId);
 //     maintenanceList.innerHTML = '';
 //     if (records.length === 0) {
-//         maintenanceList.innerHTML = '<div class="empty-state">No service records yet.</div>';
+//         maintenanceList.innerHTML = '<div class="empty-state"><div class="empty-title">No records yet</div></div>';
 //         return;
 //     }
 //     // Build table from records here

@@ -51,8 +51,8 @@
         <span class="nav-dot"></span> Cost Dashboard
       </div>
 
-      <a href="/account" class="sidebar-section-label">Account</a>
-      <div class="nav-item" data-section="profile-section">
+      <div class="sidebar-section-label">Account</div>
+      <div class="nav-item" id="accountNavItem">
         <span class="nav-dot"></span> Profile
       </div>
 
@@ -363,7 +363,7 @@
           </select>
         </div>
 
-        <div class="stat-row" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-row">
           <div class="stat-box">
             <div class="stat-value" id="avgMpg">—</div>
             <div class="stat-label">Average MPG</div>
@@ -445,7 +445,7 @@
           <button class="btn-secondary btn-sm" id="costsFilterBtn">Apply</button>
         </div>
 
-        <div class="stat-row" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-row">
           <div class="stat-box">
             <div class="stat-value" id="costMaintTotal">—</div>
             <div class="stat-label">Maintenance Total</div>
@@ -477,58 +477,6 @@
                 <div class="empty-title">No data yet</div>
                 <p>Select a vehicle to view summary.</p>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── PROFILE ── -->
-      <div class="section" id="profile-section">
-        <div class="page-header">
-          <div class="page-header-left">
-            <h2>My Profile</h2>
-            <p>Your account details and activity summary.</p>
-          </div>
-        </div>
-
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-header"><h3>Account Details</h3></div>
-            <div class="form-group">
-              <label>Username</label>
-              <input type="text" id="profileUsername" readonly/>
-            </div>
-            <div class="form-group">
-              <label>Email</label>
-              <input type="text" id="profileEmail" readonly/>
-            </div>
-            <div class="form-group">
-              <label>Member Since</label>
-              <input type="text" id="profileCreated" readonly/>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header"><h3>Activity Summary</h3></div>
-            <div class="cost-row">
-              <span>Vehicles Registered</span>
-              <span class="cost-amount" id="profileVehicles">—</span>
-            </div>
-            <div class="cost-row">
-              <span>Total Service Records</span>
-              <span class="cost-amount" id="profileServices">—</span>
-            </div>
-            <div class="cost-row">
-              <span>Fuel Fillups Logged</span>
-              <span class="cost-amount" id="profileFillups">—</span>
-            </div>
-            <div class="cost-row">
-              <span>Maintenance Spent</span>
-              <span class="cost-amount" id="profileMaintSpend">—</span>
-            </div>
-            <div class="cost-row">
-              <span>Fuel Spent</span>
-              <span class="cost-amount" id="profileFuelSpend">—</span>
             </div>
           </div>
         </div>
