@@ -25,6 +25,11 @@ app.get('/', (req, res) => {
 app.get('/dashboard', (req, res) => {
     res.sendFile(__dirname + '/public/dashboard.html');
 });
+
+// Route to serve account.html
+app.get('/account', (req, res) => {
+    res.sendFile(__dirname + '/public/account.html');
+});
 //////////////////////////////////////
 //END ROUTES TO SERVE HTML FILES
 //////////////////////////////////////
@@ -175,6 +180,8 @@ app.get('/api/users', authenticateToken, async (req, res) => {
         res.status(500).json({ message: 'Error retrieving email addresses.' });
     }
 });
+
+
 //////////////////////////////////////
 //END ROUTES TO HANDLE API REQUESTS
 //////////////////////////////////////

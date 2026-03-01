@@ -27,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = '/dashboard';
     });
 
-
     //////////////////////////////////////////
     // INITIAL PAGE LOAD LOGIC
     //////////////////////////////////////////
