@@ -73,6 +73,14 @@ const DataModel = (function () {
             return request('POST', '/api/vehicles', vehicleData);
         },
 
+        updateVehicle: async function (id, vehicleData) {
+            return request('PUT', '/api/vehicles/' + id, vehicleData);
+        },
+
+        deleteVehicle: async function (id) {
+            return request('DELETE', '/api/vehicles/' + id);
+        },
+
         //////////////////////////////
         // MAINTENANCE LOG
         //////////////////////////////

@@ -331,13 +331,34 @@ function renderVehicleCards() {
           '<div class="vehicle-meta-val">' + (v.lastService ? formatDate(v.lastService) : 'None') + '</div></div>' +
         '<div class="vehicle-meta-item"><div class="vehicle-meta-key">Open Items</div>' +
           openItemsHTML(v) + '</div>' +
-      '</div></div>';
+      '</div>' +
+      '<div class="vehicle-card-actions">' +
+        '<button type="button" class="btn btn-secondary vehicle-edit-btn" data-vehicle-id="' + v.id + '">' +
+          '<i class="fa-solid fa-pen"></i> Edit</button>' +
+        '<button type="button" class="btn btn-danger vehicle-delete-btn" data-vehicle-id="' + v.id + '">' +
+          '<i class="fa-solid fa-trash"></i> Delete</button>' +
+      '</div>' +
+      '</div>';
   }).join('');
 
   qsa('.vehicle-card', container).forEach(function(card) {
     card.addEventListener('click', function() { selectVehicle(card.dataset.vehicleId); });
     card.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.key === ' ') selectVehicle(card.dataset.vehicleId);
+    });
+  });
+
+  qsa('.vehicle-edit-btn', container).forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openEditVehicleModal(btn.dataset.vehicleId);
+    });
+  });
+
+  qsa('.vehicle-delete-btn', container).forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      confirmDeleteVehicle(btn.dataset.vehicleId);
     });
   });
 }
@@ -885,6 +906,132 @@ async function submitAddVehicle() {
     showToast('Error adding vehicle: ' + err.message, 'error');
     return false;
   }
+}
+
+
+/* ── Edit Vehicle Modal ── */
+function openEditVehicleModal(vehicleId) {
+  var v = getVehicle(vehicleId);
+  if (!v) return;
+
+  var typeOptions = ['Sedan', 'Truck', 'SUV', 'Hatchback', 'Coupe', 'Minivan', 'Other'];
+  var typeSelect = typeOptions.map(function(t) {
+    return '<option value="' + t + '"' + (v.type === t ? ' selected' : '') + '>' + t + '</option>';
+  }).join('');
+
+  var modal = createModal('Edit Vehicle',
+    '<div class="modal-form">' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="evYear">Year</label>' +
+          '<input id="evYear" class="form-control" type="number" min="1900" max="2100" value="' + v.year + '" /></div>' +
+        '<div class="form-group"><label class="form-label" for="evType">Type</label>' +
+          '<select id="evType" class="form-control">' + typeSelect + '</select></div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="evMake">Make</label>' +
+          '<input id="evMake" class="form-control" type="text" value="' + v.make + '" /></div>' +
+        '<div class="form-group"><label class="form-label" for="evModel">Model</label>' +
+          '<input id="evModel" class="form-control" type="text" value="' + v.model + '" /></div>' +
+      '</div>' +
+      '<div class="form-group"><label class="form-label" for="evMileage">Current Mileage</label>' +
+        '<input id="evMileage" class="form-control" type="number" min="0" value="' + v.odometer + '" /></div>' +
+    '</div>',
+    [{ label: 'Save Changes', cls: 'btn-primary',  action: 'save'   },
+     { label: 'Cancel',       cls: 'btn-secondary', action: 'cancel' }]
+  );
+
+  qsa('[data-modal-action]', modal).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (btn.dataset.modalAction === 'save') {
+        btn.disabled = true;
+        if (await submitEditVehicle(vehicleId)) closeModal();
+        else btn.disabled = false;
+      } else {
+        closeModal();
+      }
+    });
+  });
+}
+
+async function submitEditVehicle(vehicleId) {
+  function val(id) { var el = qs('#' + id); return el ? el.value.trim() : ''; }
+  var year    = parseInt(val('evYear'));
+  var type    = val('evType');
+  var make    = val('evMake');
+  var model   = val('evModel');
+  var mileage = parseInt(val('evMileage'));
+
+  if (!year || !make || !model || isNaN(mileage)) {
+    showToast('Please fill in all required fields.', 'error');
+    return false;
+  }
+
+  var numericId = vehicleId.replace(/^v/, '');
+  try {
+    await DataModel.updateVehicle(numericId, { year, make, model, type, current_mileage: mileage });
+
+    var v = getVehicle(vehicleId);
+    v.year     = year;
+    v.make     = make;
+    v.model    = model;
+    v.type     = type;
+    v.odometer = mileage;
+
+    renderSidebarVehicles();
+    renderVehicleCards();
+    renderStats();
+    showToast(year + ' ' + make + ' ' + model + ' updated!', 'success');
+    return true;
+  } catch (err) {
+    showToast('Error updating vehicle: ' + err.message, 'error');
+    return false;
+  }
+}
+
+/* ── Delete Vehicle Confirmation ── */
+function confirmDeleteVehicle(vehicleId) {
+  var v = getVehicle(vehicleId);
+  if (!v) return;
+
+  var label = v.year + ' ' + v.make + ' ' + v.model;
+  var modal = createModal('Delete Vehicle',
+    '<p style="margin:0;line-height:1.5;">Are you sure you want to delete the <strong>' + label + '</strong>? ' +
+    'This will also remove all associated maintenance records, fuel logs, and service reminders.</p>',
+    [{ label: 'Delete',  cls: 'btn-danger',    action: 'delete' },
+     { label: 'Cancel',  cls: 'btn-secondary', action: 'cancel' }]
+  );
+
+  qsa('[data-modal-action]', modal).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (btn.dataset.modalAction === 'delete') {
+        btn.disabled = true;
+        var numericId = vehicleId.replace(/^v/, '');
+        try {
+          await DataModel.deleteVehicle(numericId);
+
+          AppState.vehicles = AppState.vehicles.filter(function(x) { return x.id !== vehicleId; });
+          AppState.services       = AppState.services.filter(function(s) { return s.vehicleId !== vehicleId; });
+          AppState.maintenanceLog = AppState.maintenanceLog.filter(function(m) { return m.vehicleId !== vehicleId; });
+          AppState.fuelLog        = AppState.fuelLog.filter(function(f) { return f.vehicleId !== vehicleId; });
+
+          if (AppState.activeVehicleId === vehicleId) {
+            AppState.activeVehicleId = AppState.vehicles.length > 0 ? AppState.vehicles[0].id : null;
+          }
+
+          closeModal();
+          renderSidebarVehicles();
+          renderVehicleCards();
+          renderStats();
+          showToast(label + ' deleted.', 'success');
+        } catch (err) {
+          showToast('Error deleting vehicle: ' + err.message, 'error');
+          btn.disabled = false;
+        }
+      } else {
+        closeModal();
+      }
+    });
+  });
 }
 
 

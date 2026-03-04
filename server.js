@@ -183,6 +183,257 @@ app.get('/api/users', authenticateToken, async (req, res) => {
 
 
 //////////////////////////////////////
+// VEHICLE ROUTES
+//////////////////////////////////////
+// Route: Get all vehicles for the logged-in user
+app.get('/api/vehicles', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [rows] = await connection.execute(
+            'SELECT * FROM vehicles WHERE user_email = ? ORDER BY created_at ASC',
+            [req.user.email]
+        );
+        await connection.end();
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error retrieving vehicles.' });
+    }
+});
+
+// Route: Add a vehicle
+app.post('/api/vehicles', authenticateToken, async (req, res) => {
+    const { year, make, model, type, current_mileage } = req.body;
+    if (!year || !make || !model) {
+        return res.status(400).json({ message: 'Year, make, and model are required.' });
+    }
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            'INSERT INTO vehicles (user_email, year, make, model, type, current_mileage) VALUES (?, ?, ?, ?, ?, ?)',
+            [req.user.email, year, make, model, type || 'Other', current_mileage || 0]
+        );
+        const [rows] = await connection.execute('SELECT * FROM vehicles WHERE id = ?', [result.insertId]);
+        await connection.end();
+        res.status(201).json(rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error adding vehicle.' });
+    }
+});
+
+// Route: Update a vehicle
+app.put('/api/vehicles/:id', authenticateToken, async (req, res) => {
+    const { year, make, model, type, current_mileage } = req.body;
+    if (!year || !make || !model) {
+        return res.status(400).json({ message: 'Year, make, and model are required.' });
+    }
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            'UPDATE vehicles SET year = ?, make = ?, model = ?, type = ?, current_mileage = ? WHERE id = ? AND user_email = ?',
+            [year, make, model, type || 'Other', current_mileage || 0, req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Vehicle not found.' });
+        }
+        res.status(200).json({ id: req.params.id, year, make, model, type, current_mileage });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error updating vehicle.' });
+    }
+});
+
+// Route: Delete a vehicle
+app.delete('/api/vehicles/:id', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        await connection.execute(
+            'DELETE FROM maintenance_log WHERE vehicle_id = ?',
+            [req.params.id]
+        );
+        const [result] = await connection.execute(
+            'DELETE FROM vehicles WHERE id = ? AND user_email = ?',
+            [req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Vehicle not found.' });
+        }
+        res.status(200).json({ message: 'Vehicle deleted.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error deleting vehicle.' });
+    }
+});
+//////////////////////////////////////
+// MAINTENANCE LOG ROUTES
+//////////////////////////////////////
+app.get('/api/maintenance', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [rows] = await connection.execute(
+            `SELECT m.* FROM maintenance_log m
+             JOIN vehicles v ON m.vehicle_id = v.id
+             WHERE v.user_email = ?
+             ORDER BY m.date DESC, m.created_at DESC`,
+            [req.user.email]
+        );
+        await connection.end();
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error retrieving maintenance log.' });
+    }
+});
+
+app.post('/api/maintenance', authenticateToken, async (req, res) => {
+    const { vehicle_id, service_type, date, mileage, cost, location, notes } = req.body;
+    if (!vehicle_id || !service_type || !date) {
+        return res.status(400).json({ message: 'vehicle_id, service_type, and date are required.' });
+    }
+    try {
+        const connection = await createConnection();
+        // Verify the vehicle belongs to this user
+        const [vehicles] = await connection.execute(
+            'SELECT id FROM vehicles WHERE id = ? AND user_email = ?',
+            [vehicle_id, req.user.email]
+        );
+        if (vehicles.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Vehicle not found.' });
+        }
+        const [result] = await connection.execute(
+            'INSERT INTO maintenance_log (vehicle_id, service_type, date, mileage, cost, location, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [vehicle_id, service_type, date, mileage || 0, cost || 0, location || '', notes || '']
+        );
+        await connection.end();
+        res.status(201).json({ id: result.insertId, vehicle_id, service_type, date, mileage, cost, location, notes });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error adding maintenance entry.' });
+    }
+});
+
+//////////////////////////////////////
+// FUEL LOG ROUTES
+//////////////////////////////////////
+app.get('/api/fuel', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [rows] = await connection.execute(
+            `SELECT f.* FROM fuel_log f
+             JOIN vehicles v ON f.vehicle_id = v.id
+             WHERE v.user_email = ?
+             ORDER BY f.date DESC, f.created_at DESC`,
+            [req.user.email]
+        );
+        await connection.end();
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error retrieving fuel log.' });
+    }
+});
+
+app.post('/api/fuel', authenticateToken, async (req, res) => {
+    const { vehicle_id, date, gallons, price_per_gallon, mileage, station } = req.body;
+    if (!vehicle_id || !date || !gallons) {
+        return res.status(400).json({ message: 'vehicle_id, date, and gallons are required.' });
+    }
+    try {
+        const connection = await createConnection();
+        const [vehicles] = await connection.execute(
+            'SELECT id FROM vehicles WHERE id = ? AND user_email = ?',
+            [vehicle_id, req.user.email]
+        );
+        if (vehicles.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Vehicle not found.' });
+        }
+        const [result] = await connection.execute(
+            'INSERT INTO fuel_log (vehicle_id, date, gallons, price_per_gallon, mileage) VALUES (?, ?, ?, ?, ?)',
+            [vehicle_id, date, gallons, price_per_gallon || 0, mileage || 0]
+        );
+        await connection.end();
+        res.status(201).json({ id: result.insertId, vehicle_id, date, gallons, price_per_gallon, mileage, station });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error adding fuel entry.' });
+    }
+});
+
+//////////////////////////////////////
+// REMINDERS ROUTES
+//////////////////////////////////////
+app.get('/api/reminders', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [rows] = await connection.execute(
+            `SELECT r.* FROM reminders r
+             JOIN vehicles v ON r.vehicle_id = v.id
+             WHERE v.user_email = ? AND r.completed = 0
+             ORDER BY r.due_date ASC`,
+            [req.user.email]
+        );
+        await connection.end();
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error retrieving reminders.' });
+    }
+});
+
+app.post('/api/reminders', authenticateToken, async (req, res) => {
+    const { vehicle_id, service_type, due_date, due_mileage } = req.body;
+    if (!vehicle_id || !service_type) {
+        return res.status(400).json({ message: 'vehicle_id and service_type are required.' });
+    }
+    try {
+        const connection = await createConnection();
+        const [vehicles] = await connection.execute(
+            'SELECT id FROM vehicles WHERE id = ? AND user_email = ?',
+            [vehicle_id, req.user.email]
+        );
+        if (vehicles.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Vehicle not found.' });
+        }
+        const [result] = await connection.execute(
+            'INSERT INTO reminders (vehicle_id, service_type, due_date, due_mileage, completed) VALUES (?, ?, ?, ?, 0)',
+            [vehicle_id, service_type, due_date || null, due_mileage || null]
+        );
+        await connection.end();
+        res.status(201).json({ id: result.insertId, vehicle_id, service_type, due_date, due_mileage, completed: 0 });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error adding reminder.' });
+    }
+});
+
+app.put('/api/reminders/:id/complete', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            `UPDATE reminders r
+             JOIN vehicles v ON r.vehicle_id = v.id
+             SET r.completed = 1
+             WHERE r.id = ? AND v.user_email = ?`,
+            [req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Reminder not found.' });
+        }
+        res.status(200).json({ message: 'Reminder marked complete.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error completing reminder.' });
+    }
+});
+
+//////////////////////////////////////
 //END ROUTES TO HANDLE API REQUESTS
 //////////////////////////////////////
 
