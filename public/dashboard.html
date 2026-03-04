@@ -1,492 +1,256 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AutoTrack</title>
-  <link rel="stylesheet" href="css/stylesheet.css"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vehicle Maintenance Tracker — Team GR8</title>
+  <link rel="stylesheet" href="css/stylesheet.css" />
+  <!-- Icon library -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        integrity="sha512-Avb2QiuDEEvB4bZJYdft2mNjVShBftLdPG8FJ0V7irTLQ8Uo0qcPxh4Plq7G5tGm0rU+1SPhVotteLpBERwTkw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <script src="js/datamodel.js" defer></script>
+  <script src="js/dashboard.js" defer></script>
 </head>
-<body class="dashboard-body">
+<body>
 
-  <!-- ══════════════════════════════════════ -->
-  <!-- HEADER -->
-  <!-- ══════════════════════════════════════ -->
-  <div class="header">
-    <div class="header-brand">Auto<span>Track</span></div>
-    <div class="header-right">
-      <div class="header-user">Welcome, <strong id="usernameDisplay">—</strong></div>
-      <button class="btn-ghost btn-sm" id="logoutButton">Log Out</button>
+<div class="app-wrapper">
+
+  <!-- ══ TOP BAR ══ -->
+  <header class="topbar">
+    <a href="#" class="topbar-logo" data-view="dashboard">
+      <div class="logo-icon"><i class="fa-solid fa-car"></i></div>
+      <span class="logo-text">Moto<span>Track</span></span>
+    </a>
+
+    <div class="topbar-spacer"></div>
+
+    <div class="topbar-search">
+      <span class="search-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
+      <input id="topbarSearchInput" type="text" placeholder="Search vehicles, services…" />
     </div>
-  </div>
 
-  <div class="app-body">
+    <div class="topbar-actions">
+      <button id="notifBtn" class="btn-icon" title="Notifications">
+        <i class="fa-regular fa-bell"></i>
+        <span class="badge"></span>
+      </button>
+      <button class="btn-icon" title="Settings">
+        <i class="fa-solid fa-gear"></i>
+      </button>
+      <div id="userAvatar" class="user-avatar" title="">ML</div>
+    </div>
+  </header>
 
-    <!-- ══════════════════════════════════════ -->
-    <!-- SIDEBAR -->
-    <!-- ══════════════════════════════════════ -->
-    <nav class="sidebar">
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navigation</div>
+      <a href="#" class="nav-item active" data-view="dashboard">
+        <span class="nav-icon"><i class="fa-solid fa-gauge-high"></i></span>
+        Dashboard
+      </a>
+      <a href="#" class="nav-item" data-view="vehicles">
+        <span class="nav-icon"><i class="fa-solid fa-car"></i></span>
+        My Vehicles
+      </a>
+      <a href="#" class="nav-item" data-view="maintenance">
+        <span class="nav-icon"><i class="fa-solid fa-wrench"></i></span>
+        Maintenance Log
+        <span class="nav-badge" id="navOverdueBadge"></span>
+      </a>
+      <a href="#" class="nav-item" data-view="schedule">
+        <span class="nav-icon"><i class="fa-regular fa-calendar"></i></span>
+        Schedule
+      </a>
+      <a href="#" class="nav-item" data-view="fuel">
+        <span class="nav-icon"><i class="fa-solid fa-gas-pump"></i></span>
+        Fuel Tracker
+      </a>
+      <a href="#" class="nav-item" data-view="analytics">
+        <span class="nav-icon"><i class="fa-solid fa-chart-bar"></i></span>
+        Cost Analytics
+      </a>
+    </div>
 
-      <div class="nav-item active" data-section="overview-section">
-        <span class="nav-dot"></span> Overview
+    <div class="sidebar-section">
+      <div class="sidebar-label">My Vehicles</div>
+      <div id="sidebarVehicles" class="sidebar-vehicles">
+        <!-- rendered by dashboard.js -->
       </div>
+    </div>
 
-      <div class="sidebar-section-label">Vehicles</div>
-      <div class="nav-item" data-section="vehicles-section">
-        <span class="nav-dot"></span> My Vehicles
+    <div class="sidebar-section">
+      <div class="sidebar-label">Account</div>
+      <a href="#" class="nav-item" data-view="profile">
+        <span class="nav-icon"><i class="fa-regular fa-user"></i></span>
+        Profile
+      </a>
+      <a href="#" class="nav-item" id="signOutLink">
+        <span class="nav-icon"><i class="fa-solid fa-arrow-right-from-bracket"></i></span>
+        Sign Out
+      </a>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN CONTENT ══ -->
+  <main class="main-content">
+
+    <!-- Page Header -->
+    <div class="page-header">
+      <div>
+        <div id="pageTitle" class="page-title">Fleet <span>Dashboard</span></div>
+        <div id="pageSubtitle" class="page-subtitle">// LOADING…</div>
       </div>
-
-      <div class="sidebar-section-label">Tracking</div>
-      <div class="nav-item" data-section="maintenance-section">
-        <span class="nav-dot"></span> Maintenance Log
+      <div class="page-actions">
+        <a href="#" class="btn btn-secondary" data-action="export"><i class="fa-solid fa-file-export"></i> Export</a>
+        <a href="#" class="btn btn-primary" id="pageActionPrimary" data-action="log-service"><i class="fa-solid fa-plus"></i> Log Service</a>
       </div>
-      <div class="nav-item" data-section="reminders-section">
-        <span class="nav-dot"></span> Reminders
+    </div>
+
+    <!-- Stats Row (always visible) -->
+    <div id="sectionStats" class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Active Vehicles</div>
+        <div id="statVehicles" class="stat-value accent">—</div>
+        <div class="stat-sub">All registered</div>
+        <div class="stat-icon"><i class="fa-solid fa-car"></i></div>
       </div>
-      <div class="nav-item" data-section="fuel-section">
-        <span class="nav-dot"></span> Fuel Tracker
+      <div class="stat-card">
+        <div class="stat-label">Services Overdue</div>
+        <div id="statOverdue" class="stat-value red">—</div>
+        <div class="stat-sub">Requires attention</div>
+        <div class="stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
       </div>
-
-      <div class="sidebar-section-label">Analytics</div>
-      <div class="nav-item" data-section="costs-section">
-        <span class="nav-dot"></span> Cost Dashboard
+      <div class="stat-card">
+        <div class="stat-label">MTD Spend</div>
+        <div id="statSpend" class="stat-value green">—</div>
+        <div class="stat-sub">This month</div>
+        <div class="stat-icon"><i class="fa-solid fa-dollar-sign"></i></div>
       </div>
-
-      <div class="sidebar-section-label">Account</div>
-      <div class="nav-item" id="accountNavItem">
-        <span class="nav-dot"></span> Profile
+      <div class="stat-card">
+        <div class="stat-label">Avg Fuel Economy</div>
+        <div id="statMpg" class="stat-value">—</div>
+        <div class="stat-sub">MPG across fleet</div>
+        <div class="stat-icon"><i class="fa-solid fa-gas-pump"></i></div>
       </div>
+    </div>
 
-    </nav>
+    <!-- Single-panel view container (used by non-dashboard views) -->
+    <div id="viewContainer" style="display:none;"></div>
 
-    <!-- ══════════════════════════════════════ -->
-    <!-- MAIN CONTENT -->
-    <!-- ══════════════════════════════════════ -->
-    <main class="main-content">
+    <!-- Row 1: Upcoming Services + Vehicle Cards -->
+    <div id="sectionRow1" class="content-grid">
 
-      <!-- ── OVERVIEW ── -->
-      <div class="section active" id="overview-section">
-        <div class="page-header">
-          <div class="page-header-left">
-            <h2>Overview</h2>
-            <p>A summary of your vehicles and recent activity.</p>
-          </div>
+      <!-- Upcoming Services -->
+      <div id="panelSchedule" class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><span class="dot"></span> Upcoming Services</div>
+          <a href="#" class="panel-action" data-nav="schedule">View all →</a>
         </div>
-
-        <div class="stat-row">
-          <div class="stat-box">
-            <div class="stat-value" id="statVehicles">—</div>
-            <div class="stat-label">Vehicles</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="statServices">—</div>
-            <div class="stat-label">Service Records</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="statReminders" style="color: var(--danger);">—</div>
-            <div class="stat-label">Reminders Due</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="statSpend">—</div>
-            <div class="stat-label">Total Spent</div>
-          </div>
-        </div>
-
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-header">
-              <h3>Upcoming Reminders</h3>
-              <span class="badge badge-yellow" id="reminderCount">—</span>
-            </div>
-            <div id="overviewReminders">
-              <div class="loading-message">Loading...</div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-header">
-              <h3>Recent Maintenance</h3>
-            </div>
-            <div id="overviewRecent">
-              <div class="loading-message">Loading...</div>
-            </div>
-          </div>
+        <div id="serviceList" class="service-list">
+          <!-- rendered by dashboard.js -->
         </div>
       </div>
 
-      <!-- ── VEHICLES ── -->
-      <div class="section" id="vehicles-section">
-        <div class="page-header">
-          <div class="page-header-left">
-            <h2>My Vehicles</h2>
-            <p>Add and manage the vehicles in your garage.</p>
-          </div>
-          <div class="page-header-right">
-            <button class="btn-primary btn-sm" id="showAddVehicleBtn">+ Add Vehicle</button>
-          </div>
+      <!-- Vehicle Cards -->
+      <div id="panelVehicles" class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><span class="dot"></span> Vehicles</div>
+          <a href="#" class="panel-action" data-nav="vehicles">Manage →</a>
         </div>
-
-        <!-- Add Vehicle Form (hidden by default) -->
-        <div class="card" id="addVehicleForm" style="display: none;">
-          <div class="card-header">
-            <h3>Add a Vehicle</h3>
-            <button class="btn-ghost btn-sm" id="cancelAddVehicleBtn">Cancel</button>
-          </div>
-          <div id="vehicleMessage" class="message"></div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="vehicleYear">Year</label>
-              <input type="number" id="vehicleYear" placeholder="e.g. 2019"/>
-            </div>
-            <div class="form-group">
-              <label for="vehicleMake">Make</label>
-              <input type="text" id="vehicleMake" placeholder="e.g. Toyota"/>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="vehicleModel">Model</label>
-              <input type="text" id="vehicleModel" placeholder="e.g. Camry"/>
-            </div>
-            <div class="form-group">
-              <label for="vehicleType">Type</label>
-              <select id="vehicleType">
-                <option value="">Select type</option>
-                <option>Sedan</option>
-                <option>SUV</option>
-                <option>Truck</option>
-                <option>Van</option>
-                <option>Coupe</option>
-                <option>Motorcycle</option>
-                <option>Other</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="vehicleMileage">Current Mileage</label>
-              <input type="number" id="vehicleMileage" placeholder="e.g. 45000"/>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary" id="addVehicleBtn">Save Vehicle</button>
-            <button class="btn-ghost" id="cancelAddVehicleBtn2">Cancel</button>
-          </div>
+        <div id="vehicleCards" class="vehicle-cards">
+          <!-- rendered by dashboard.js -->
         </div>
+      </div>
 
-        <div class="card">
-          <div class="card-header">
-            <h3>Your Vehicles</h3>
-            <span class="badge badge-blue" id="vehicleCount">0 vehicles</span>
+    </div><!-- /sectionRow1 -->
+
+    <!-- Row 2: Cost Analytics + Fuel Log -->
+    <div id="sectionRow2" class="content-grid-wide" style="margin-bottom:16px;">
+
+      <!-- Cost Chart -->
+      <div id="panelCostChart" class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><span class="dot"></span> Monthly Spend</div>
+          <a href="#" class="panel-action" data-nav="analytics">Details →</a>
+        </div>
+        <div class="cost-chart">
+          <div id="costBars" class="cost-months">
+            <!-- rendered by dashboard.js -->
           </div>
-          <div class="vehicle-grid" id="vehicleList">
-            <div class="empty-state">
-              <div class="empty-title">No vehicles yet</div>
-              <p>Click "Add Vehicle" to get started.</p>
-            </div>
+          <div class="cost-total">
+            <span class="cost-total-label">YTD TOTAL SPEND</span>
+            <span class="cost-total-val" id="ytdTotal">—</span>
           </div>
         </div>
       </div>
 
-      <!-- ── MAINTENANCE LOG ── -->
-      <div class="section" id="maintenance-section">
-        <div class="page-header">
-          <div class="page-header-left">
-            <h2>Maintenance Log</h2>
-            <p>Track all service history for your vehicles.</p>
-          </div>
-          <div class="page-header-right">
-            <button class="btn-primary btn-sm" id="showAddMaintenanceBtn">+ Log Service</button>
-          </div>
+      <!-- Fuel Log -->
+      <div id="panelFuelLog" class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><span class="dot"></span> <span id="fuelPanelTitle">Recent Fuel Entries</span></div>
+          <a href="#" class="panel-action" id="fuelPanelAction" data-nav="fuel">View all →</a>
         </div>
-
-        <div class="vehicle-selector">
-          <label for="maintenanceVehicleSelect">Vehicle:</label>
-          <select id="maintenanceVehicleSelect">
-            <option value="">Select a vehicle</option>
-          </select>
-        </div>
-
-        <!-- Log Service Form (hidden by default) -->
-        <div class="card" id="addMaintenanceForm" style="display: none;">
-          <div class="card-header">
-            <h3>Log a Service</h3>
-            <button class="btn-ghost btn-sm" id="cancelAddMaintenanceBtn">Cancel</button>
-          </div>
-          <div id="maintenanceMessage" class="message"></div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="serviceType">Service Type</label>
-              <select id="serviceType">
-                <option value="">Select type</option>
-                <option>Oil Change</option>
-                <option>Tire Rotation</option>
-                <option>Brake Service</option>
-                <option>Air Filter</option>
-                <option>Battery Replacement</option>
-                <option>Transmission Service</option>
-                <option>Coolant Flush</option>
-                <option>Spark Plugs</option>
-                <option>Inspection</option>
-                <option>Other</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="serviceDate">Date</label>
-              <input type="date" id="serviceDate"/>
-            </div>
-          </div>
-          <div class="form-row-3">
-            <div class="form-group">
-              <label for="serviceMileage">Mileage</label>
-              <input type="number" id="serviceMileage" placeholder="e.g. 52000"/>
-            </div>
-            <div class="form-group">
-              <label for="serviceCost">Cost ($)</label>
-              <input type="number" id="serviceCost" placeholder="e.g. 49.99" step="0.01"/>
-            </div>
-            <div class="form-group">
-              <label for="serviceLocation">Location</label>
-              <input type="text" id="serviceLocation" placeholder="e.g. Jiffy Lube"/>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="serviceNotes">Notes</label>
-            <input type="text" id="serviceNotes" placeholder="Optional notes"/>
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary" id="addMaintenanceBtn">Save Record</button>
-            <button class="btn-ghost" id="cancelAddMaintenanceBtn2">Cancel</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>Service History</h3>
-          </div>
-          <div id="maintenanceList">
-            <div class="empty-state">
-              <div class="empty-title">No records yet</div>
-              <p>Select a vehicle and log your first service.</p>
-            </div>
-          </div>
+        <div id="fuelSummary" style="display:none;"></div>
+        <div id="fuelList">
+          <!-- rendered by dashboard.js -->
         </div>
       </div>
 
-      <!-- ── REMINDERS ── -->
-      <div class="section" id="reminders-section">
-        <div class="page-header">
-          <div class="page-header-left">
-            <h2>Reminders</h2>
-            <p>Set upcoming service reminders by date or mileage.</p>
-          </div>
-          <div class="page-header-right">
-            <button class="btn-primary btn-sm" id="showAddReminderBtn">+ Add Reminder</button>
-          </div>
-        </div>
+    </div><!-- /sectionRow2 -->
 
-        <div class="vehicle-selector">
-          <label for="remindersVehicleSelect">Vehicle:</label>
-          <select id="remindersVehicleSelect">
-            <option value="">Select a vehicle</option>
-          </select>
-        </div>
+    <!-- Row 3: Maintenance Log Table -->
+    <div id="panelMaintenance" class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="dot"></span> Maintenance Log</div>
+        <a href="#" class="panel-action" data-nav="maintenance">Full history →</a>
+      </div>
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Service Type</th>
+            <th>Vehicle</th>
+            <th>Mileage</th>
+            <th>Location</th>
+            <th>Cost</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="maintenanceTbody">
+          <!-- rendered by dashboard.js -->
+        </tbody>
+      </table>
+    </div>
 
-        <!-- Add Reminder Form (hidden by default) -->
-        <div class="card" id="addReminderForm" style="display: none;">
-          <div class="card-header">
-            <h3>Add a Reminder</h3>
-            <button class="btn-ghost btn-sm" id="cancelAddReminderBtn">Cancel</button>
-          </div>
-          <div id="reminderMessage" class="message"></div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="reminderServiceType">Service Type</label>
-              <select id="reminderServiceType">
-                <option value="">Select type</option>
-                <option>Oil Change</option>
-                <option>Tire Rotation</option>
-                <option>Brake Service</option>
-                <option>Air Filter</option>
-                <option>Battery Replacement</option>
-                <option>Transmission Service</option>
-                <option>Coolant Flush</option>
-                <option>Spark Plugs</option>
-                <option>Inspection</option>
-                <option>Other</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="reminderDueDate">Due Date (optional)</label>
-              <input type="date" id="reminderDueDate"/>
+    <!-- Profile Panel (hidden until profile view is selected) -->
+    <div id="panelProfile" class="panel" style="display:none;">
+      <div class="panel-header">
+        <div class="panel-title"><span class="dot"></span> Profile</div>
+      </div>
+      <div class="panel-body">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;align-items:center;gap:16px;padding:8px 0;border-bottom:1px solid var(--border);">
+            <div id="profileAvatar" style="width:52px;height:52px;border-radius:var(--radius-lg);background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:22px;font-weight:800;flex-shrink:0;">ML</div>
+            <div>
+              <div style="font-family:var(--font-head);font-size:18px;font-weight:700;letter-spacing:.04em;color:var(--text);" id="profileEmail">—</div>
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:2px;">Registered account</div>
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="reminderDueMileage">Due Mileage (optional)</label>
-              <input type="number" id="reminderDueMileage" placeholder="e.g. 55000"/>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary" id="addReminderBtn">Save Reminder</button>
-            <button class="btn-ghost" id="cancelAddReminderBtn2">Cancel</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>Active Reminders</h3>
-          </div>
-          <div id="reminderList">
-            <div class="empty-state">
-              <div class="empty-title">No reminders set</div>
-              <p>Select a vehicle and add your first reminder.</p>
-            </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:4px;">
+            <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.1em;">VEHICLES</div><div id="profileVehicleCount" style="font-family:var(--font-head);font-size:28px;font-weight:800;color:var(--accent);">—</div></div>
+            <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.1em;">SERVICES LOGGED</div><div id="profileServiceCount" style="font-family:var(--font-head);font-size:28px;font-weight:800;color:var(--accent);">—</div></div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- ── FUEL TRACKER ── -->
-      <div class="section" id="fuel-section">
-        <div class="page-header">
-          <div class="page-header-left">
-            <h2>Fuel Tracker</h2>
-            <p>Log fillups and monitor fuel efficiency over time.</p>
-          </div>
-          <div class="page-header-right">
-            <button class="btn-primary btn-sm" id="showAddFuelBtn">+ Log Fillup</button>
-          </div>
-        </div>
+  </main><!-- /main-content -->
 
-        <div class="vehicle-selector">
-          <label for="fuelVehicleSelect">Vehicle:</label>
-          <select id="fuelVehicleSelect">
-            <option value="">Select a vehicle</option>
-          </select>
-        </div>
+</div><!-- /app-wrapper -->
 
-        <div class="stat-row">
-          <div class="stat-box">
-            <div class="stat-value" id="avgMpg">—</div>
-            <div class="stat-label">Average MPG</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="lastMpg">—</div>
-            <div class="stat-label">Last MPG</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="totalFuelSpend">—</div>
-            <div class="stat-label">Total Fuel Spent</div>
-          </div>
-        </div>
-
-        <!-- Log Fillup Form (hidden by default) -->
-        <div class="card" id="addFuelForm" style="display: none;">
-          <div class="card-header">
-            <h3>Log a Fillup</h3>
-            <button class="btn-ghost btn-sm" id="cancelAddFuelBtn">Cancel</button>
-          </div>
-          <div id="fuelMessage" class="message"></div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="fuelDate">Date</label>
-              <input type="date" id="fuelDate"/>
-            </div>
-            <div class="form-group">
-              <label for="fuelMileage">Mileage at Fillup</label>
-              <input type="number" id="fuelMileage" placeholder="e.g. 53200"/>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="fuelGallons">Gallons</label>
-              <input type="number" id="fuelGallons" placeholder="e.g. 12.4" step="0.01"/>
-            </div>
-            <div class="form-group">
-              <label for="fuelPrice">Price per Gallon ($)</label>
-              <input type="number" id="fuelPrice" placeholder="e.g. 3.49" step="0.01"/>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button class="btn-primary" id="addFuelBtn">Save Fillup</button>
-            <button class="btn-ghost" id="cancelAddFuelBtn2">Cancel</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>Fillup History</h3>
-          </div>
-          <div id="fuelList">
-            <div class="empty-state">
-              <div class="empty-title">No fillups logged</div>
-              <p>Select a vehicle and log your first fillup.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── COST DASHBOARD ── -->
-      <div class="section" id="costs-section">
-        <div class="page-header">
-          <div class="page-header-left">
-            <h2>Cost Dashboard</h2>
-            <p>A full breakdown of what each vehicle costs you.</p>
-          </div>
-        </div>
-
-        <div class="vehicle-selector">
-          <label for="costsVehicleSelect">Vehicle:</label>
-          <select id="costsVehicleSelect">
-            <option value="">Select a vehicle</option>
-          </select>
-          <label for="costsDateFrom">From:</label>
-          <input type="date" id="costsDateFrom" style="width:auto;"/>
-          <label for="costsDateTo">To:</label>
-          <input type="date" id="costsDateTo" style="width:auto;"/>
-          <button class="btn-secondary btn-sm" id="costsFilterBtn">Apply</button>
-        </div>
-
-        <div class="stat-row">
-          <div class="stat-box">
-            <div class="stat-value" id="costMaintTotal">—</div>
-            <div class="stat-label">Maintenance Total</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="costFuelTotal">—</div>
-            <div class="stat-label">Fuel Total</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value" id="costCombinedTotal" style="color: var(--danger);">—</div>
-            <div class="stat-label">Combined Total</div>
-          </div>
-        </div>
-
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-header"><h3>By Service Type</h3></div>
-            <div id="costByType">
-              <div class="empty-state">
-                <div class="empty-title">No data yet</div>
-                <p>Select a vehicle to view breakdown.</p>
-              </div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-header"><h3>Spending Summary</h3></div>
-            <div id="costSummary">
-              <div class="empty-state">
-                <div class="empty-title">No data yet</div>
-                <p>Select a vehicle to view summary.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </main>
-  </div>
-
-  <script src="js/datamodel.js"></script>
-  <script src="js/dashboard.js"></script>
 
 </body>
 </html>

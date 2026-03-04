@@ -1,140 +1,271 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AutoTrack</title>
-  <link rel="stylesheet" href="css/stylesheet.css"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MotoTrack — Sign In</title>
+  <link rel="stylesheet" href="css/stylesheet.css" />
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        integrity="sha512-Avb2QiuDEEvB4bZJYdft2mNjVShBftLdPG8FJ0V7irTLQ8Uo0qcPxh4Plq7G5tGm0rU+1SPhVotteLpBERwTkw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+    /* ── Logon page layout ── */
+    .logon-wrapper {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .logon-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 400px;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+      animation: fadeUp 0.4s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Card header / brand ── */
+    .logon-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 28px 28px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--accent);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .brand-text {
+      font-family: var(--font-head);
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text);
+    }
+
+    .brand-text span { color: var(--accent); }
+
+    .brand-sub {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      margin-top: 2px;
+    }
+
+    /* ── Tab bar ── */
+    .logon-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logon-tab {
+      padding: 12px;
+      background: none;
+      border: none;
+      font-family: var(--font-head);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all var(--transition);
+      border-bottom: 2px solid transparent;
+    }
+
+    .logon-tab:hover { color: var(--text-dim); }
+
+    .logon-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    /* ── Form body ── */
+    .logon-body { padding: 28px; }
+
+    .logon-form { display: none; flex-direction: column; gap: 16px; }
+    .logon-form.active-form { display: flex; }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .form-input {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 14px;
+      outline: none;
+      width: 100%;
+      transition: border-color var(--transition);
+    }
+
+    .form-input::placeholder { color: var(--text-muted); }
+    .form-input:focus { border-color: var(--accent-dim); }
+
+    .submit-btn {
+      margin-top: 4px;
+      width: 100%;
+      height: 42px;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-head);
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    .submit-btn:hover { background: #f0d060; }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Message ── */
+    .logon-message {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      display: none;
+    }
+
+    .logon-message.error {
+      display: block;
+      background: rgba(224, 92, 92, 0.12);
+      border: 1px solid rgba(224, 92, 92, 0.3);
+      color: var(--red);
+    }
+
+    .logon-message.success {
+      display: block;
+      background: rgba(76, 175, 129, 0.12);
+      border: 1px solid rgba(76, 175, 129, 0.3);
+      color: var(--green);
+    }
+
+    /* ── Footer ── */
+    .logon-footer {
+      padding: 16px 28px;
+      border-top: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: center;
+      letter-spacing: 0.06em;
+    }
+  </style>
 </head>
-<body class="logon-body">
+<body>
 
-  <div class="logon-container">
+<div class="logon-wrapper">
+  <div class="logon-card">
 
-    <h1>AutoTrack</h1>
-
-    <!-- Tab switcher -->
-    <div class="tab">
-      <button class="tab-button active" id="login-tab">Sign In</button>
-      <button class="tab-button" id="create-account-tab">Create Account</button>
+    <!-- Brand -->
+    <div class="logon-brand">
+      <div class="brand-icon"><i class="fa-solid fa-car"></i></div>
+      <div>
+        <div class="brand-text">Moto<span>Track</span></div>
+        <div class="brand-sub">Vehicle Maintenance Tracker — Team GR8</div>
+      </div>
     </div>
 
-    <!-- Feedback message -->
-    <div id="message" class="message"></div>
+    <!-- Tabs -->
+    <div class="logon-tabs">
+      <button class="logon-tab active" id="login-tab">Sign In</button>
+      <button class="logon-tab" id="create-account-tab">Create Account</button>
+    </div>
 
-    <!-- Login Form -->
-    <form id="logon-form" class="active-form">
-      <div class="form-group">
-        <label for="login-email">Email</label>
-        <input type="email" id="login-email" placeholder="you@example.com"/>
-      </div>
-      <div class="form-group">
-        <label for="login-password">Password</label>
-        <input type="password" id="login-password" placeholder="Enter your password"/>
-      </div>
-      <button type="submit" class="btn-primary">Sign In</button>
-    </form>
+    <!-- Forms -->
+    <div class="logon-body">
 
-    <!-- Create Account Form -->
-    <form id="create-account-form">
-      <div class="form-group">
-        <label for="create-username">Username</label>
-        <input type="text" id="create-username" placeholder="Choose a username"/>
-      </div>
-      <div class="form-group">
-        <label for="create-email">Email</label>
-        <input type="email" id="create-email" placeholder="you@example.com"/>
-      </div>
-      <div class="form-group">
-        <label for="create-password">Password</label>
-        <input type="password" id="create-password" placeholder="Choose a password"/>
-      </div>
-      <button type="submit" class="btn-primary">Create Account</button>
-    </form>
+      <!-- Sign In Form -->
+      <form id="logon-form" class="logon-form active-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="login-email">Email</label>
+          <input class="form-input" type="email" id="login-email"
+                 placeholder="you@example.com" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="login-password">Password</label>
+          <input class="form-input" type="password" id="login-password"
+                 placeholder="Enter your password" required />
+        </div>
+        <p id="message" class="logon-message"></p>
+        <button type="submit" class="submit-btn">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In
+        </button>
+      </form>
+
+      <!-- Create Account Form -->
+      <form id="create-account-form" class="logon-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="create-email">Email</label>
+          <input class="form-input" type="email" id="create-email"
+                 placeholder="you@example.com" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="create-password">Password</label>
+          <input class="form-input" type="password" id="create-password"
+                 placeholder="Create a password" required />
+        </div>
+        <p id="create-message" class="logon-message"></p>
+        <button type="submit" class="submit-btn">
+          <i class="fa-solid fa-user-plus"></i> Create Account
+        </button>
+      </form>
+
+    </div><!-- /logon-body -->
+
+    <div class="logon-footer">// SECURE LOGIN · JWT AUTHENTICATED</div>
 
   </div>
+</div>
 
-  <script>
-    const loginTab          = document.getElementById('login-tab');
-    const createAccountTab  = document.getElementById('create-account-tab');
-    const logonForm         = document.getElementById('logon-form');
-    const createAccountForm = document.getElementById('create-account-form');
-    const messageEl         = document.getElementById('message');
-
-    // Tab switching
-    loginTab.addEventListener('click', () => {
-      logonForm.classList.add('active-form');
-      createAccountForm.classList.remove('active-form');
-      loginTab.classList.add('active');
-      createAccountTab.classList.remove('active');
-      messageEl.textContent = '';
-      messageEl.className = 'message';
-    });
-
-    createAccountTab.addEventListener('click', () => {
-      createAccountForm.classList.add('active-form');
-      logonForm.classList.remove('active-form');
-      createAccountTab.classList.add('active');
-      loginTab.classList.remove('active');
-      messageEl.textContent = '';
-      messageEl.className = 'message';
-    });
-
-    // Login
-    logonForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email    = document.getElementById('login-email').value;
-      const password = document.getElementById('login-password').value;
-      try {
-        const response = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-        const result = await response.json();
-        if (response.ok) {
-          localStorage.setItem('jwtToken', result.token);
-          window.location.href = '/dashboard';
-        } else {
-          messageEl.textContent = result.message;
-          messageEl.className = 'message error';
-        }
-      } catch (err) {
-        messageEl.textContent = 'An error occurred. Please try again.';
-        messageEl.className = 'message error';
-      }
-    });
-
-    // Create account
-    createAccountForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const username = document.getElementById('create-username').value;
-      const email    = document.getElementById('create-email').value;
-      const password = document.getElementById('create-password').value;
-      try {
-        const response = await fetch('/api/create-account', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, email, password }),
-        });
-        const result = await response.json();
-        if (response.ok) {
-          messageEl.textContent = 'Account created! You can now sign in.';
-          messageEl.className = 'message success';
-          document.getElementById('login-email').value = email;
-          logonForm.classList.add('active-form');
-          createAccountForm.classList.remove('active-form');
-          loginTab.classList.add('active');
-          createAccountTab.classList.remove('active');
-        } else {
-          messageEl.textContent = result.message;
-          messageEl.className = 'message error';
-        }
-      } catch (err) {
-        messageEl.textContent = 'An error occurred. Please try again.';
-        messageEl.className = 'message error';
-      }
-    });
-  </script>
-
+<script src="js/logon.js"></script>
 </body>
 </html>

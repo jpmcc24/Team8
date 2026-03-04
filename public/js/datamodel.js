@@ -10,97 +10,107 @@
 const DataModel = (function () {
     //WE CAN STORE DATA HERE SO THAT WE DON'T HAVE TO FETCH IT
     //EVERY TIME WE NEED IT.  THIS IS CALLED "CACHING".
-    //WE CAN ALSO STORE THINGS HERE TO MANAGE STATE, LIKE
-    //WHEN THE USER SELECTS SOMETHING IN THE VIEW AND WE
-    //NEED TO KEEP TRACK OF IT SO WE CAN USE THAT INFOMRATION
-    //LATER.  RIGHT NOW, WE'RE JUST STORING THE JWT TOKEN
-    //AND THE LIST OF USERS.
-    let token = null;  // Holds the JWT token
-    let users = [];    // Holds the list of user emails
+    let token = null;
 
-    //WE CAN CREATE FUNCTIONS HERE TO FETCH DATA FROM THE SERVER
-    //AND RETURN IT TO THE CONTROLLER.  THE CONTROLLER CAN THEN
-    //USE THAT DATA TO UPDATE THE VIEW.  THE CONTROLLER CAN ALSO
-    //SEND DATA TO THE SERVER TO BE STORED IN THE DATABASE BY
-    //CALLING FUNCTIONS THAT WE DEFINE HERE.
+    // Internal helper that handles all fetch calls.
+    // Redirects to login on 401/403; throws on other errors.
+    async function request(method, path, body) {
+        if (!token) {
+            console.error('Token is not set.');
+            return null;
+        }
+
+        const opts = {
+            method,
+            headers: {
+                'Authorization': token,
+                'Content-Type': 'application/json',
+            },
+        };
+
+        if (body) opts.body = JSON.stringify(body);
+
+        const response = await fetch(path, opts);
+
+        if (response.status === 401 || response.status === 403) {
+            // Token is missing or expired — send user back to login
+            localStorage.removeItem('jwtToken');
+            window.location.href = '/';
+            return null;
+        }
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.message || 'Request failed');
+        }
+
+        return response.json();
+    }
+
     return {
-        //utility function to store the token so that we
-        //can use it later to make authenticated requests
+        // Store the JWT so every subsequent request is authenticated
         setToken: function (newToken) {
             token = newToken;
         },
 
-        //function to fetch the list of users from the server
+        //////////////////////////////
+        // USER
+        //////////////////////////////
         getUsers: async function () {
-            // Check if the token is set
-            if (!token) {
-                console.error("Token is not set.");
-                return [];
-            }
-
-            try {
-                // this is our call to the /api/users route on the server
-                const response = await fetch('/api/users', {
-                    method: 'GET',
-                    headers: {
-                        // we need to send the token in the headers
-                        'Authorization': token,
-                        'Content-Type': 'application/json',
-                    },
-                });
-
-                if (!response.ok) {
-                    console.error("Error fetching users:", await response.json());
-                    return [];
-                }
-
-                const data = await response.json();
-                //store the emails in the users variable so we can
-                //use them again later without having to fetch them
-                users = data.emails;
-                //return the emails to the controller
-                //so that it can update the view
-                return users;
-            } catch (error) {
-                console.error("Error in API call:", error);
-                return [];
-            }
+            const data = await request('GET', '/api/users');
+            return data ? data.emails : [];
         },
 
-        //ADD MORE FUNCTIONS HERE TO FETCH DATA FROM THE SERVER
-        //AND SEND DATA TO THE SERVER AS NEEDED
+        //////////////////////////////
+        // VEHICLES
+        //////////////////////////////
+        getVehicles: async function () {
+            const data = await request('GET', '/api/vehicles');
+            return data || [];
+        },
 
+        addVehicle: async function (vehicleData) {
+            return request('POST', '/api/vehicles', vehicleData);
+        },
 
-        
-// getCurrentUser — fetches the logged in user's info from the server
+        //////////////////////////////
+        // MAINTENANCE LOG
+        //////////////////////////////
+        getMaintenance: async function () {
+            const data = await request('GET', '/api/maintenance');
+            return data || [];
+        },
 
-        getCurrentUser: async function () {
-            if (!token) {
-                console.error("Token is not set.");
-                return null;
-            }
+        addMaintenance: async function (entry) {
+            return request('POST', '/api/maintenance', entry);
+        },
 
-            try {
-                const response = await fetch('/api/users/me', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': token,
-                        'Content-Type': 'application/json',
-                    },
-                });
+        //////////////////////////////
+        // FUEL LOG
+        //////////////////////////////
+        getFuel: async function () {
+            const data = await request('GET', '/api/fuel');
+            return data || [];
+        },
 
-                if (!response.ok) {
-                    console.error("Error fetching current user:", await response.json());
-                    return null;
-                }
+        addFuel: async function (entry) {
+            return request('POST', '/api/fuel', entry);
+        },
 
-                return await response.json();
+        //////////////////////////////
+        // REMINDERS
+        //////////////////////////////
+        getReminders: async function () {
+            const data = await request('GET', '/api/reminders');
+            return data || [];
+        },
 
-            } catch (error) {
-                console.error("Error in API call:", error);
-                return null;
-            }
-        }
-        
+        addReminder: async function (entry) {
+            return request('POST', '/api/reminders', entry);
+        },
+
+        completeReminder: async function (id) {
+            return request('PUT', '/api/reminders/' + id + '/complete');
+        },
     };
 })();
