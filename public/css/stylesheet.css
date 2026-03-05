@@ -605,74 +605,114 @@ body::before {
 }
 
 /* ── Vehicle Card ── */
-.vehicle-cards { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+.vehicle-cards { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 
 .vehicle-card {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 16px;
   cursor: pointer;
   transition: all var(--transition);
   position: relative;
   overflow: hidden;
 }
-.vehicle-card:hover { border-color: var(--border-bright); }
-.vehicle-card.active { border-color: var(--accent-dim); }
-.vehicle-card.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--accent);
+.vehicle-card:hover {
+  border-color: var(--border-bright);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  transform: translateY(-1px);
+}
+.vehicle-card.active {
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 1px var(--accent-dim), 0 4px 24px rgba(232,197,71,0.08);
 }
 
-.vehicle-card-header {
+/* Banner */
+.vehicle-card-banner {
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
 }
+.vehicle-card-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--vc) 0%, transparent 60%);
+  opacity: 0.08;
+  pointer-events: none;
+}
+.vehicle-banner-icon {
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 72px;
+  color: var(--vc);
+  opacity: 0.07;
+  pointer-events: none;
+  line-height: 1;
+}
+.vehicle-card-banner-info { flex: 1; min-width: 0; }
 .vehicle-make-model {
   font-family: var(--font-head);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
   color: var(--text);
   text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .vehicle-year {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.06em;
 }
 .vehicle-health {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
   padding: 3px 8px;
   border-radius: 2px;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
 }
-.health-good    { background: rgba(76, 175, 129, 0.15); color: var(--green); }
-.health-fair    { background: rgba(232, 197, 71, 0.15); color: var(--accent); }
-.health-poor    { background: rgba(224, 92, 92, 0.15); color: var(--red); }
+.health-good { background: rgba(76,175,129,0.15); color: var(--green); border: 1px solid rgba(76,175,129,0.25); }
+.health-fair { background: rgba(232,197,71,0.12); color: var(--accent); border: 1px solid rgba(232,197,71,0.25); }
+.health-poor { background: rgba(224,92,92,0.15);  color: var(--red);    border: 1px solid rgba(224,92,92,0.25); }
 
+/* Meta grid */
 .vehicle-meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 0;
+  padding: 0 16px;
 }
-.vehicle-meta-item {}
+.vehicle-meta-item {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.vehicle-meta-item:nth-child(odd)  { padding-right: 12px; border-right: 1px solid var(--border); }
+.vehicle-meta-item:nth-child(even) { padding-left: 12px; }
+.vehicle-meta-item:nth-last-child(-n+2) { border-bottom: none; }
 .vehicle-meta-key {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-muted);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
 }
 .vehicle-meta-val {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text);
   font-weight: 500;
 }
@@ -680,9 +720,9 @@ body::before {
 .vehicle-card-actions {
   display: flex;
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
+  padding: 10px 16px;
   border-top: 1px solid var(--border);
+  background: rgba(0,0,0,0.1);
 }
 .vehicle-card-actions .btn {
   font-size: 12px;

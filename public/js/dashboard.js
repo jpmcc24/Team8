@@ -41,6 +41,18 @@ const getVehicle   = id  => AppState.vehicles.find(function(v){ return v.id === 
 const vehicleLabel = id  => { var v = getVehicle(id); return v ? (v.year + ' ' + v.make + ' ' + v.model) : '—'; };
 const mpgColor     = mpg => mpg >= 30 ? 'var(--green)' : mpg >= 22 ? 'var(--accent)' : 'var(--red)';
 const healthClass  = h   => ({ good: 'health-good', fair: 'health-fair', poor: 'health-poor' }[h] || 'health-good');
+function vehicleTypeIcon(type) {
+  var icons = {
+    'Sedan':    'fa-car',
+    'Coupe':    'fa-car-side',
+    'Hatchback':'fa-car-side',
+    'SUV':      'fa-truck-suv',
+    'Truck':    'fa-truck-pickup',
+    'Minivan':  'fa-van-shuttle',
+    'Other':    'fa-car'
+  };
+  return icons[type] || 'fa-car';
+}
 
 function statusTag(status, daysOverdue, daysUntil) {
   if (status === 'overdue') return '<span class="service-due-tag tag-overdue">Overdue ' + daysOverdue + ' days</span>';
@@ -277,12 +289,19 @@ function renderServices() {
   var container = qs('#serviceList');
   if (!container) return;
 
-  if (AppState.services.length === 0) {
-    container.innerHTML = '<div class="empty-state">No upcoming services. All caught up!</div>';
+  var services = AppState.activeVehicleId
+    ? AppState.services.filter(function(s) { return s.vehicleId === AppState.activeVehicleId; })
+    : AppState.services;
+
+  if (services.length === 0) {
+    var msg = AppState.activeVehicleId
+      ? 'No upcoming services for this vehicle.'
+      : 'No upcoming services. All caught up!';
+    container.innerHTML = '<div class="empty-state">' + msg + '</div>';
     return;
   }
 
-  container.innerHTML = AppState.services.map(function(s) {
+  container.innerHTML = services.map(function(s) {
     return '<div class="service-item" data-service-id="' + s.id + '" role="button" tabindex="0">' +
       '<div class="service-status ' + statusDotClass(s.status) + '"></div>' +
       '<div class="service-info">' +
@@ -313,12 +332,15 @@ function renderVehicleCards() {
   }
 
   container.innerHTML = AppState.vehicles.map(function(v) {
-    return '<div class="vehicle-card ' + (v.id === AppState.activeVehicleId ? 'active' : '') +
+    var isActive = v.id === AppState.activeVehicleId;
+    var color = v.color || 'var(--accent)';
+    return '<div class="vehicle-card ' + (isActive ? 'active' : '') +
       '" data-vehicle-id="' + v.id + '" role="button" tabindex="0">' +
-      '<div class="vehicle-card-header">' +
-        '<div>' +
+      '<div class="vehicle-card-banner" style="--vc:' + color + '">' +
+        '<i class="fa-solid ' + vehicleTypeIcon(v.type) + ' vehicle-banner-icon"></i>' +
+        '<div class="vehicle-card-banner-info">' +
           '<div class="vehicle-make-model">' + v.make + ' ' + v.model + '</div>' +
-          '<div class="vehicle-year">' + v.year + ' · ' + v.type + '</div>' +
+          '<div class="vehicle-year"><i class="fa-solid ' + vehicleTypeIcon(v.type) + '" style="font-size:10px;margin-right:4px;"></i>' + v.year + ' · ' + v.type + '</div>' +
         '</div>' +
         '<span class="vehicle-health ' + healthClass(v.health) + '">' + v.health.toUpperCase() + '</span>' +
       '</div>' +
@@ -326,7 +348,7 @@ function renderVehicleCards() {
         '<div class="vehicle-meta-item"><div class="vehicle-meta-key">Odometer</div>' +
           '<div class="vehicle-meta-val">' + formatMileage(v.odometer) + '</div></div>' +
         '<div class="vehicle-meta-item"><div class="vehicle-meta-key">Avg MPG</div>' +
-          '<div class="vehicle-meta-val">' + (v.avgMpg > 0 ? v.avgMpg : '—') + '</div></div>' +
+          '<div class="vehicle-meta-val" style="color:' + (v.avgMpg > 0 ? mpgColor(v.avgMpg) : 'inherit') + '">' + (v.avgMpg > 0 ? v.avgMpg : '—') + '</div></div>' +
         '<div class="vehicle-meta-item"><div class="vehicle-meta-key">Last Service</div>' +
           '<div class="vehicle-meta-val">' + (v.lastService ? formatDate(v.lastService) : 'None') + '</div></div>' +
         '<div class="vehicle-meta-item"><div class="vehicle-meta-key">Open Items</div>' +
@@ -428,12 +450,19 @@ function renderMaintenanceLog() {
   var tbody = qs('#maintenanceTbody');
   if (!tbody) return;
 
-  if (AppState.maintenanceLog.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No maintenance records yet.</td></tr>';
+  var log = AppState.activeVehicleId
+    ? AppState.maintenanceLog.filter(function(m) { return m.vehicleId === AppState.activeVehicleId; })
+    : AppState.maintenanceLog;
+
+  if (log.length === 0) {
+    var msg = AppState.activeVehicleId
+      ? 'No maintenance records for this vehicle.'
+      : 'No maintenance records yet.';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + msg + '</td></tr>';
     return;
   }
 
-  tbody.innerHTML = AppState.maintenanceLog.map(function(m) {
+  tbody.innerHTML = log.map(function(m) {
     return '<tr>' +
       '<td class="td-mono">'    + formatDate(m.date)        + '</td>' +
       '<td class="td-name">'    + m.service                 + '</td>' +
@@ -454,6 +483,8 @@ function selectVehicle(id) {
   AppState.activeVehicleId = id;
   renderSidebarVehicles();
   renderVehicleCards();
+  renderServices();
+  renderMaintenanceLog();
 }
 
 
@@ -609,14 +640,16 @@ function recomputeVehicleHealth() {
 
 /* ── Add Service Modal ── */
 function openAddServiceModal() {
+  var activeId = AppState.activeVehicleId;
   var opts = AppState.vehicles.map(function(v) {
-    return '<option value="' + v.id + '">' + v.year + ' ' + v.make + ' ' + v.model + '</option>';
+    var sel = (v.id === activeId) ? ' selected' : '';
+    return '<option value="' + v.id + '"' + sel + '>' + v.year + ' ' + v.make + ' ' + v.model + '</option>';
   }).join('');
 
   var modal = createModal('Log New Service',
     '<div class="modal-form">' +
       '<div class="form-group"><label class="form-label" for="fsVehicle">Vehicle</label>' +
-        '<select id="fsVehicle" class="form-control"><option value="" disabled selected>Select a vehicle…</option>' + opts + '</select></div>' +
+        '<select id="fsVehicle" class="form-control">' + (activeId ? '' : '<option value="" disabled selected>Select a vehicle…</option>') + opts + '</select></div>' +
       '<div class="form-group"><label class="form-label" for="fsService">Service Type</label>' +
         '<input id="fsService" class="form-control" type="text" placeholder="e.g. Oil Change" /></div>' +
       '<div class="form-row">' +
@@ -699,14 +732,16 @@ async function submitAddService() {
 
 /* ── Add Fuel Modal ── */
 function openAddFuelModal() {
+  var activeId = AppState.activeVehicleId;
   var opts = AppState.vehicles.map(function(v) {
-    return '<option value="' + v.id + '">' + v.year + ' ' + v.make + ' ' + v.model + '</option>';
+    var sel = (v.id === activeId) ? ' selected' : '';
+    return '<option value="' + v.id + '"' + sel + '>' + v.year + ' ' + v.make + ' ' + v.model + '</option>';
   }).join('');
 
   var modal = createModal('Log Fuel Fill-up',
     '<div class="modal-form">' +
       '<div class="form-group"><label class="form-label" for="ffVehicle">Vehicle</label>' +
-        '<select id="ffVehicle" class="form-control"><option value="" disabled selected>Select a vehicle…</option>' + opts + '</select></div>' +
+        '<select id="ffVehicle" class="form-control">' + (activeId ? '' : '<option value="" disabled selected>Select a vehicle…</option>') + opts + '</select></div>' +
       '<div class="form-row">' +
         '<div class="form-group"><label class="form-label" for="ffDate">Date</label>' +
           '<input id="ffDate" class="form-control" type="date" value="' + new Date().toISOString().slice(0, 10) + '" /></div>' +
