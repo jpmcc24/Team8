@@ -41,6 +41,7 @@ const getVehicle   = id  => AppState.vehicles.find(function(v){ return v.id === 
 const vehicleLabel = id  => { var v = getVehicle(id); return v ? (v.year + ' ' + v.make + ' ' + v.model) : '—'; };
 const mpgColor     = mpg => mpg >= 30 ? 'var(--green)' : mpg >= 22 ? 'var(--accent)' : 'var(--red)';
 const healthClass  = h   => ({ good: 'health-good', fair: 'health-fair', poor: 'health-poor' }[h] || 'health-good');
+
 function vehicleTypeIcon(type) {
   var icons = {
     'Sedan':    'fa-car',
@@ -390,7 +391,7 @@ function renderCostChart() {
   if (!container) return;
 
   var amounts   = AppState.monthlySpend.map(function(m){ return m.amount; });
-  var max       = Math.max.apply(null, amounts.concat([1])); // avoid divide-by-zero
+  var max       = Math.max.apply(null, amounts.concat([1]));
   var lastMonth = AppState.monthlySpend[AppState.monthlySpend.length - 1];
 
   container.innerHTML = AppState.monthlySpend.map(function(m) {
@@ -458,7 +459,7 @@ function renderMaintenanceLog() {
     var msg = AppState.activeVehicleId
       ? 'No maintenance records for this vehicle.'
       : 'No maintenance records yet.';
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + msg + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">' + msg + '</td></tr>';
     return;
   }
 
@@ -471,8 +472,24 @@ function renderMaintenanceLog() {
       '<td>'                    + (m.location || '—')       + '</td>' +
       '<td class="td-cost">'    + formatCurrency(m.cost)    + '</td>' +
       '<td>'                    + (m.notes || '')           + '</td>' +
+      '<td style="white-space:nowrap;">' +
+  '<button type="button" class="maint-edit-btn" ' +
+    'style="font-size:11px;padding:4px 8px;margin-right:4px;background:var(--surface-2);color:var(--text);border:1px solid var(--border-bright);border-radius:var(--radius);cursor:pointer;" data-id="' + m.id + '">' +
+    '<i class="fa-solid fa-pen"></i></button>' +
+  '<button type="button" class="maint-delete-btn" ' +
+    'style="font-size:11px;padding:4px 8px;background:rgba(224,92,92,0.15);color:var(--red);border:1px solid var(--red);border-radius:var(--radius);cursor:pointer;" data-id="' + m.id + '">' +
+    '<i class="fa-solid fa-trash"></i></button>' +
+'</td>' +
     '</tr>';
   }).join('');
+
+  qsa('.maint-edit-btn', tbody).forEach(function(btn) {
+    btn.addEventListener('click', function() { openEditMaintenanceModal(btn.dataset.id); });
+  });
+
+  qsa('.maint-delete-btn', tbody).forEach(function(btn) {
+    btn.addEventListener('click', function() { confirmDeleteMaintenance(btn.dataset.id); });
+  });
 }
 
 
@@ -581,8 +598,8 @@ async function logServiceComplete(serviceId) {
 
   var s               = AppState.services[idx];
   var v               = getVehicle(s.vehicleId);
-  var reminderId      = parseInt(s.id.slice(1));        // 'r12' → 12
-  var numericVehicleId = parseInt(s.vehicleId.slice(1)); // 'v3'  → 3
+  var reminderId      = parseInt(s.id.slice(1));
+  var numericVehicleId = parseInt(s.vehicleId.slice(1));
 
   var entry = {
     vehicle_id:   numericVehicleId,
@@ -610,7 +627,6 @@ async function logServiceComplete(serviceId) {
     });
     AppState.services.splice(idx, 1);
 
-    // Refresh vehicle health stats
     recomputeVehicleHealth();
     renderServices();
     renderStats();
@@ -699,7 +715,7 @@ async function submitAddService() {
     return false;
   }
 
-  var numericVehicleId = parseInt(vehicleId.slice(1)); // 'v3' → 3
+  var numericVehicleId = parseInt(vehicleId.slice(1));
 
   try {
     var result = await DataModel.addMaintenance({
@@ -727,6 +743,130 @@ async function submitAddService() {
     showToast('Error saving service: ' + err.message, 'error');
     return false;
   }
+}
+
+
+/* ── Edit Maintenance Modal ── */
+function openEditMaintenanceModal(maintenanceId) {
+  var m = AppState.maintenanceLog.find(function(x) { return x.id === maintenanceId; });
+  if (!m) return;
+
+  var modal = createModal('Edit Maintenance Record',
+    '<div class="modal-form">' +
+      '<div class="form-group"><label class="form-label" for="emService">Service Type</label>' +
+        '<input id="emService" class="form-control" type="text" value="' + m.service + '" /></div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="emDate">Date</label>' +
+          '<input id="emDate" class="form-control" type="date" value="' + m.date + '" /></div>' +
+        '<div class="form-group"><label class="form-label" for="emMileage">Mileage</label>' +
+          '<input id="emMileage" class="form-control" type="number" value="' + m.mileage + '" min="0" /></div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="emCost">Cost ($)</label>' +
+          '<input id="emCost" class="form-control" type="number" value="' + m.cost + '" min="0" step="0.01" /></div>' +
+        '<div class="form-group"><label class="form-label" for="emLocation">Location</label>' +
+          '<input id="emLocation" class="form-control" type="text" value="' + (m.location || '') + '" /></div>' +
+      '</div>' +
+      '<div class="form-group"><label class="form-label" for="emNotes">Notes</label>' +
+        '<input id="emNotes" class="form-control" type="text" value="' + (m.notes || '') + '" /></div>' +
+    '</div>',
+    [{ label: 'Save Changes', cls: 'btn-primary',  action: 'save'   },
+     { label: 'Cancel',       cls: 'btn-secondary', action: 'cancel' }]
+  );
+
+  qsa('[data-modal-action]', modal).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (btn.dataset.modalAction === 'save') {
+        btn.disabled = true;
+        if (await submitEditMaintenance(maintenanceId)) closeModal();
+        else btn.disabled = false;
+      } else {
+        closeModal();
+      }
+    });
+  });
+}
+
+async function submitEditMaintenance(maintenanceId) {
+  function val(id) { var el = qs('#' + id); return el ? el.value.trim() : ''; }
+  var service  = val('emService');
+  var date     = val('emDate');
+  var mileage  = parseFloat(val('emMileage'));
+  var cost     = parseFloat(val('emCost')) || 0;
+  var location = val('emLocation') || '';
+  var notes    = val('emNotes')    || '';
+
+  if (!service || !date || isNaN(mileage)) {
+    showToast('Please fill in all required fields.', 'error');
+    return false;
+  }
+
+  var numericId = parseInt(maintenanceId.slice(1)); // 'm12' → 12
+
+  try {
+    await DataModel.updateMaintenance(numericId, {
+      service_type: service, date, mileage, cost, location, notes
+    });
+
+    var m = AppState.maintenanceLog.find(function(x) { return x.id === maintenanceId; });
+    m.service  = service;
+    m.date     = date;
+    m.mileage  = mileage;
+    m.cost     = cost;
+    m.location = location;
+    m.notes    = notes;
+
+    computeMonthlySpend();
+    renderMaintenanceLog();
+    renderCostChart();
+    renderStats();
+    showToast('Maintenance record updated.', 'success');
+    return true;
+  } catch (err) {
+    showToast('Error updating record: ' + err.message, 'error');
+    return false;
+  }
+}
+
+/* ── Delete Maintenance Confirmation ── */
+function confirmDeleteMaintenance(maintenanceId) {
+  var m = AppState.maintenanceLog.find(function(x) { return x.id === maintenanceId; });
+  if (!m) return;
+
+  var modal = createModal('Delete Maintenance Record',
+    '<p style="margin:0;line-height:1.5;">Are you sure you want to delete the <strong>' +
+    m.service + '</strong> record from ' + formatDate(m.date) + '? This cannot be undone.</p>',
+    [{ label: 'Delete',  cls: 'btn-danger',    action: 'delete' },
+     { label: 'Cancel',  cls: 'btn-secondary', action: 'cancel' }]
+  );
+
+  qsa('[data-modal-action]', modal).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (btn.dataset.modalAction === 'delete') {
+        btn.disabled = true;
+        var numericId = parseInt(maintenanceId.slice(1));
+        try {
+          await DataModel.deleteMaintenance(numericId);
+
+          AppState.maintenanceLog = AppState.maintenanceLog.filter(function(x) {
+            return x.id !== maintenanceId;
+          });
+
+          computeMonthlySpend();
+          renderMaintenanceLog();
+          renderCostChart();
+          renderStats();
+          closeModal();
+          showToast('Maintenance record deleted.', 'success');
+        } catch (err) {
+          showToast('Error deleting record: ' + err.message, 'error');
+          btn.disabled = false;
+        }
+      } else {
+        closeModal();
+      }
+    });
+  });
 }
 
 
@@ -765,7 +905,6 @@ function openAddFuelModal() {
      { label: 'Cancel',       cls: 'btn-secondary', action: 'cancel' }]
   );
 
-  // Live MPG preview
   function calcMpg() {
     var vehicleId  = qs('#ffVehicle')  ? qs('#ffVehicle').value  : '';
     var odometer   = parseFloat(qs('#ffOdometer') ? qs('#ffOdometer').value : '');
@@ -816,7 +955,7 @@ async function submitAddFuel() {
     return false;
   }
 
-  var numericVehicleId = parseInt(vehicleId.slice(1)); // 'v3' → 3
+  var numericVehicleId = parseInt(vehicleId.slice(1));
   var pricePerGallon   = gallons > 0 ? parseFloat((cost / gallons).toFixed(4)) : 0;
 
   var v            = getVehicle(vehicleId);
@@ -1127,10 +1266,6 @@ function initSearch() {
 /* ══════════════════════════════════════════
    NAV + VIEW SWITCHER
 ══════════════════════════════════════════ */
-
-// Which dashboard sections to show/hide for each view.
-// Panels inside sectionRow1/sectionRow2 are moved into #viewContainer
-// so they can be displayed full-width without their grid wrapper.
 var VIEW_CONFIG = {
   dashboard:   {
     title:    'Fleet <span>Dashboard</span>',
@@ -1143,16 +1278,12 @@ var VIEW_CONFIG = {
   },
   vehicles:    {
     title:    'My <span>Vehicles</span>',
-    subtitle: function() {
-      return '// ' + AppState.vehicles.length + ' REGISTERED';
-    },
+    subtitle: function() { return '// ' + AppState.vehicles.length + ' REGISTERED'; },
     panel: 'panelVehicles',
   },
   maintenance: {
     title:    'Maintenance <span>Log</span>',
-    subtitle: function() {
-      return '// ' + AppState.maintenanceLog.length + ' RECORDS';
-    },
+    subtitle: function() { return '// ' + AppState.maintenanceLog.length + ' RECORDS'; },
     panel: 'panelMaintenance',
   },
   schedule:    {
@@ -1165,9 +1296,7 @@ var VIEW_CONFIG = {
   },
   fuel:        {
     title:    'Fuel <span>Tracker</span>',
-    subtitle: function() {
-      return '// ' + AppState.fuelLog.length + ' ENTRIES';
-    },
+    subtitle: function() { return '// ' + AppState.fuelLog.length + ' ENTRIES'; },
     panel: 'panelFuelLog',
   },
   analytics:   {
@@ -1182,7 +1311,6 @@ var VIEW_CONFIG = {
   },
 };
 
-// Track where panels lived before being moved into #viewContainer
 var _panelOrigins = {};
 var _currentView  = 'dashboard';
 
@@ -1192,7 +1320,6 @@ function switchView(viewName) {
 
   var viewContainer = qs('#viewContainer');
 
-  // ── 1. Restore any panel that was previously moved out ──
   Object.keys(_panelOrigins).forEach(function(id) {
     var info  = _panelOrigins[id];
     var panel = document.getElementById(id);
@@ -1205,7 +1332,6 @@ function switchView(viewName) {
   });
   _panelOrigins = {};
 
-  // ── 2. Hide everything that lives in the grid sections ──
   var allSections = ['sectionStats', 'sectionRow1', 'sectionRow2', 'panelMaintenance', 'panelProfile'];
   allSections.forEach(function(id) {
     var el = document.getElementById(id);
@@ -1215,17 +1341,14 @@ function switchView(viewName) {
   viewContainer.innerHTML = '';
 
   if (viewName === 'dashboard') {
-    // Show all dashboard sections
     ['sectionStats', 'sectionRow1', 'sectionRow2', 'panelMaintenance'].forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.style.display = '';
     });
   } else {
-    // Show stats row on every view
     var stats = qs('#sectionStats');
     if (stats) stats.style.display = '';
 
-    // Move the target panel into the view container
     var panelId = config.panel;
     if (panelId) {
       var panel = document.getElementById(panelId);
@@ -1241,13 +1364,11 @@ function switchView(viewName) {
     }
   }
 
-  // ── 3. Update page title / subtitle ──
   var titleEl = qs('#pageTitle');
   var subEl   = qs('#pageSubtitle');
   if (titleEl) titleEl.innerHTML  = config.title;
   if (subEl)   subEl.textContent  = config.subtitle();
 
-  // ── 4. Update profile panel content when visiting profile ──
   if (viewName === 'profile') {
     var emailEl = qs('#profileEmail');
     var avEl    = qs('#profileAvatar');
@@ -1260,12 +1381,10 @@ function switchView(viewName) {
     if (scEl)    scEl.textContent    = AppState.maintenanceLog.length;
   }
 
-  // ── 5. Sync active class on nav items ──
   qsa('.nav-item[data-view]').forEach(function(l) {
     l.classList.toggle('active', l.dataset.view === viewName);
   });
 
-  // ── 6. Sync primary action button ──
   var primaryBtn = qs('#pageActionPrimary');
   if (primaryBtn) {
     if (viewName === 'fuel') {
@@ -1277,7 +1396,6 @@ function switchView(viewName) {
     }
   }
 
-  // ── 7. Sync fuel panel header + summary ──
   var fuelTitle   = qs('#fuelPanelTitle');
   var fuelAction  = qs('#fuelPanelAction');
   var fuelSummary = qs('#fuelSummary');
@@ -1292,7 +1410,6 @@ function switchView(viewName) {
 }
 
 function initNav() {
-  // Nav item clicks
   qsa('.nav-item[data-view]').forEach(function(link) {
     link.addEventListener('click', function(e) {
       e.preventDefault();
@@ -1300,7 +1417,6 @@ function initNav() {
     });
   });
 
-  // Logo click → dashboard
   var logo = qs('.topbar-logo[data-view]');
   if (logo) {
     logo.addEventListener('click', function(e) {
@@ -1309,7 +1425,6 @@ function initNav() {
     });
   }
 
-  // Panel-action "View all →" / "Manage →" etc.
   document.addEventListener('click', function(e) {
     var link = e.target.closest('[data-nav]');
     if (!link) return;
@@ -1317,7 +1432,6 @@ function initNav() {
     switchView(link.dataset.nav);
   });
 
-  // Sign out
   var signOut = qs('#signOutLink');
   if (signOut) {
     signOut.addEventListener('click', function(e) {
@@ -1327,7 +1441,6 @@ function initNav() {
     });
   }
 
-  // Notification bell
   var bell = qs('#notifBtn');
   if (bell) {
     bell.addEventListener('click', function() {
@@ -1341,9 +1454,6 @@ function initNav() {
 }
 
 
-/* ══════════════════════════════════════════
-   BUTTON WIRING — event delegation
-══════════════════════════════════════════ */
 /* ══════════════════════════════════════════
    FUEL SUMMARY
 ══════════════════════════════════════════ */
@@ -1452,7 +1562,6 @@ function handleExport() {
     showToast('Nothing to export from this view.', 'info');
 
   } else {
-    // dashboard or maintenance → export full maintenance log
     if (AppState.maintenanceLog.length === 0) { showToast('No maintenance records to export.', 'info'); return; }
     rows = [['Date', 'Service Type', 'Vehicle', 'Mileage (mi)', 'Location', 'Cost ($)', 'Notes']];
     AppState.maintenanceLog.forEach(function(m) {
@@ -1463,7 +1572,6 @@ function handleExport() {
     showToast('Maintenance log exported.', 'success');
   }
 }
-
 
 function initButtons() {
   document.addEventListener('click', function(e) {
@@ -1530,7 +1638,6 @@ function decodeToken(token) {
 }
 
 function init() {
-  // Auth guard — redirect to login if no token
   var token = localStorage.getItem('jwtToken');
   if (!token) {
     window.location.href = '/';
@@ -1538,7 +1645,6 @@ function init() {
   }
   DataModel.setToken(token);
 
-  // Populate user avatar from JWT payload
   var decoded = decodeToken(token);
   if (decoded && decoded.email) {
     var initials = decoded.email[0].toUpperCase();
@@ -1563,7 +1669,6 @@ function init() {
       renderFuelLog();
       renderMaintenanceLog();
 
-      // Update dashboard subtitle now that vehicle count is known
       var subEl = qs('#pageSubtitle');
       if (subEl) subEl.textContent = VIEW_CONFIG.dashboard.subtitle();
 

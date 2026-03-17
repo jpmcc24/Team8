@@ -207,22 +207,25 @@
         <div class="panel-title"><span class="dot"></span> Maintenance Log</div>
         <a href="#" class="panel-action" data-nav="maintenance">Full history →</a>
       </div>
-      <table class="log-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Service Type</th>
-            <th>Vehicle</th>
-            <th>Mileage</th>
-            <th>Location</th>
-            <th>Cost</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody id="maintenanceTbody">
-          <!-- rendered by dashboard.js -->
-        </tbody>
-      </table>
+      <div style="overflow-x: auto;">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Service Type</th>
+              <th>Vehicle</th>
+              <th>Mileage</th>
+              <th>Location</th>
+              <th>Cost</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="maintenanceTbody">
+            <!-- rendered by dashboard.js -->
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Profile Panel (hidden until profile view is selected) -->
@@ -250,7 +253,6 @@
   </main><!-- /main-content -->
 
 </div><!-- /app-wrapper -->
-
 
 </body>
 </html>

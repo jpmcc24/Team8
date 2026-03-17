@@ -267,9 +267,11 @@ app.delete('/api/vehicles/:id', authenticateToken, async (req, res) => {
         res.status(500).json({ message: 'Error deleting vehicle.' });
     }
 });
+
 //////////////////////////////////////
 // MAINTENANCE LOG ROUTES
 //////////////////////////////////////
+// Route: Get all maintenance records for the logged-in user
 app.get('/api/maintenance', authenticateToken, async (req, res) => {
     try {
         const connection = await createConnection();
@@ -288,6 +290,7 @@ app.get('/api/maintenance', authenticateToken, async (req, res) => {
     }
 });
 
+// Route: Add a maintenance record
 app.post('/api/maintenance', authenticateToken, async (req, res) => {
     const { vehicle_id, service_type, date, mileage, cost, location, notes } = req.body;
     if (!vehicle_id || !service_type || !date) {
@@ -313,6 +316,53 @@ app.post('/api/maintenance', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error adding maintenance entry.' });
+    }
+});
+
+// Route: Update a maintenance record
+app.put('/api/maintenance/:id', authenticateToken, async (req, res) => {
+    const { service_type, date, mileage, cost, location, notes } = req.body;
+    if (!service_type || !date) {
+        return res.status(400).json({ message: 'service_type and date are required.' });
+    }
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            `UPDATE maintenance_log m
+             JOIN vehicles v ON m.vehicle_id = v.id
+             SET m.service_type = ?, m.date = ?, m.mileage = ?, m.cost = ?, m.location = ?, m.notes = ?
+             WHERE m.id = ? AND v.user_email = ?`,
+            [service_type, date, mileage || 0, cost || 0, location || '', notes || '', req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Maintenance record not found.' });
+        }
+        res.status(200).json({ id: req.params.id, service_type, date, mileage, cost, location, notes });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error updating maintenance record.' });
+    }
+});
+
+// Route: Delete a maintenance record
+app.delete('/api/maintenance/:id', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            `DELETE m FROM maintenance_log m
+             JOIN vehicles v ON m.vehicle_id = v.id
+             WHERE m.id = ? AND v.user_email = ?`,
+            [req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Maintenance record not found.' });
+        }
+        res.status(200).json({ message: 'Maintenance record deleted.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error deleting maintenance record.' });
     }
 });
 
