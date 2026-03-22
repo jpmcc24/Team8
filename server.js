@@ -249,10 +249,10 @@ app.put('/api/vehicles/:id', authenticateToken, async (req, res) => {
 app.delete('/api/vehicles/:id', authenticateToken, async (req, res) => {
     try {
         const connection = await createConnection();
-        await connection.execute(
-            'DELETE FROM maintenance_log WHERE vehicle_id = ?',
-            [req.params.id]
-        );
+        await connection.execute('DELETE FROM maintenance_log WHERE vehicle_id = ?', [req.params.id]);
+        await connection.execute('DELETE FROM fuel_log WHERE vehicle_id = ?', [req.params.id]);
+        await connection.execute('DELETE FROM reminders WHERE vehicle_id = ?', [req.params.id]);
+        await connection.execute('DELETE FROM maintenance_rules WHERE vehicle_id = ?', [req.params.id]);
         const [result] = await connection.execute(
             'DELETE FROM vehicles WHERE id = ? AND user_email = ?',
             [req.params.id, req.user.email]
@@ -480,6 +480,100 @@ app.put('/api/reminders/:id/complete', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error completing reminder.' });
+    }
+});
+
+//////////////////////////////////////
+// MAINTENANCE RULES ROUTES
+//////////////////////////////////////
+app.get('/api/rules', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [rows] = await connection.execute(
+            `SELECT r.* FROM maintenance_rules r
+             JOIN vehicles v ON r.vehicle_id = v.id
+             WHERE v.user_email = ?
+             ORDER BY r.created_at ASC`,
+            [req.user.email]
+        );
+        await connection.end();
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error retrieving maintenance rules.' });
+    }
+});
+
+app.post('/api/rules', authenticateToken, async (req, res) => {
+    const { vehicle_id, service_type, interval_days, interval_miles, last_done_date, last_done_mileage } = req.body;
+    if (!vehicle_id || !service_type) {
+        return res.status(400).json({ message: 'vehicle_id and service_type are required.' });
+    }
+    if (!interval_days && !interval_miles) {
+        return res.status(400).json({ message: 'At least one of interval_days or interval_miles is required.' });
+    }
+    try {
+        const connection = await createConnection();
+        const [vehicles] = await connection.execute(
+            'SELECT id FROM vehicles WHERE id = ? AND user_email = ?',
+            [vehicle_id, req.user.email]
+        );
+        if (vehicles.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'Vehicle not found.' });
+        }
+        const [result] = await connection.execute(
+            'INSERT INTO maintenance_rules (vehicle_id, service_type, interval_days, interval_miles, last_done_date, last_done_mileage) VALUES (?, ?, ?, ?, ?, ?)',
+            [vehicle_id, service_type, interval_days || null, interval_miles || null, last_done_date || null, last_done_mileage || null]
+        );
+        const [rows] = await connection.execute('SELECT * FROM maintenance_rules WHERE id = ?', [result.insertId]);
+        await connection.end();
+        res.status(201).json(rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error creating maintenance rule.' });
+    }
+});
+
+app.put('/api/rules/:id/complete', authenticateToken, async (req, res) => {
+    const { last_done_date, last_done_mileage } = req.body;
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            `UPDATE maintenance_rules r
+             JOIN vehicles v ON r.vehicle_id = v.id
+             SET r.last_done_date = ?, r.last_done_mileage = ?
+             WHERE r.id = ? AND v.user_email = ?`,
+            [last_done_date || null, last_done_mileage || null, req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Rule not found.' });
+        }
+        res.status(200).json({ message: 'Rule updated.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error updating maintenance rule.' });
+    }
+});
+
+app.delete('/api/rules/:id', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            `DELETE r FROM maintenance_rules r
+             JOIN vehicles v ON r.vehicle_id = v.id
+             WHERE r.id = ? AND v.user_email = ?`,
+            [req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Rule not found.' });
+        }
+        res.status(200).json({ message: 'Rule deleted.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error deleting maintenance rule.' });
     }
 });
 

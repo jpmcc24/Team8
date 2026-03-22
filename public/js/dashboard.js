@@ -17,6 +17,7 @@ const AppState = {
   currentUser:    { name: '', initials: '' },
   vehicles:       [],
   services:       [],
+  rules:          [],
   fuelLog:        [],
   maintenanceLog: [],
   monthlySpend:   [],
@@ -55,9 +56,19 @@ function vehicleTypeIcon(type) {
   return icons[type] || 'fa-car';
 }
 
-function statusTag(status, daysOverdue, daysUntil) {
-  if (status === 'overdue') return '<span class="service-due-tag tag-overdue">Overdue ' + daysOverdue + ' days</span>';
-  if (status === 'warning') return '<span class="service-due-tag tag-warning">Due in ' + daysUntil + ' days</span>';
+function statusTag(s) {
+  if (s.status === 'overdue') {
+    var parts = [];
+    if (s.daysOverdue > 0)  parts.push(s.daysOverdue + 'd');
+    if (s.milesOverdue > 0) parts.push(s.milesOverdue.toLocaleString() + ' mi');
+    return '<span class="service-due-tag tag-overdue">Overdue' + (parts.length ? ' · ' + parts.join(' / ') : '') + '</span>';
+  }
+  if (s.status === 'warning') {
+    var parts = [];
+    if (s.daysUntil  < 999) parts.push('in ' + s.daysUntil + 'd');
+    if (s.milesUntil < 999) parts.push(s.milesUntil.toLocaleString() + ' mi left');
+    return '<span class="service-due-tag tag-warning">Due ' + (parts.length ? parts.join(' / ') : 'soon') + '</span>';
+  }
   return '<span class="service-due-tag tag-ok">On schedule</span>';
 }
 
@@ -78,11 +89,12 @@ function openItemsHTML(v) {
    DATA LOADING
 ══════════════════════════════════════════ */
 async function loadData() {
-  const [rawVehicles, rawMaintenance, rawFuel, rawReminders] = await Promise.all([
+  const [rawVehicles, rawMaintenance, rawFuel, rawReminders, rawRules] = await Promise.all([
     DataModel.getVehicles(),
     DataModel.getMaintenance(),
     DataModel.getFuel(),
     DataModel.getReminders(),
+    DataModel.getRules(),
   ]);
 
   // ── Vehicles ──
@@ -149,14 +161,29 @@ async function loadData() {
 
   AppState.services = rawReminders.map(function(r) {
     var dueStr  = r.due_date ? String(r.due_date).slice(0, 10) : null;
-    var dueDate = dueStr ? new Date(dueStr) : null;
-    var status = 'ok', daysOverdue = 0, daysUntil = 999;
+    var status = 'ok', daysOverdue = 0, daysUntil = 999, milesOverdue = 0, milesUntil = 999;
 
-    if (dueDate) {
-      var diff = Math.round((dueDate - today) / 86400000);
-      if      (diff < 0)       { status = 'overdue'; daysOverdue = -diff; }
-      else if (diff <= 30)     { status = 'warning'; daysUntil = diff; }
-      else                     { status = 'ok';      daysUntil = diff; }
+    if (dueStr) {
+      var parts = dueStr.split('-').map(Number);
+      var dueDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+      var diff = Math.round((dueDateObj - today) / 86400000);
+      if      (diff < 0)   { status = 'overdue'; daysOverdue = -diff; }
+      else if (diff <= 30) { status = 'warning';  daysUntil   = diff; }
+      else                 {                      daysUntil   = diff; }
+    }
+
+    if (r.due_mileage) {
+      var vehicle = AppState.vehicles.find(function(v) { return v.id === 'v' + r.vehicle_id; });
+      var curMi = vehicle ? vehicle.odometer : 0;
+      var mileDiff = r.due_mileage - curMi;
+      if (mileDiff <= 0) {
+        status = 'overdue'; milesOverdue = -mileDiff;
+      } else if (mileDiff <= 500) {
+        if (status !== 'overdue') status = 'warning';
+        milesUntil = mileDiff;
+      } else {
+        milesUntil = mileDiff;
+      }
     }
 
     return {
@@ -164,11 +191,27 @@ async function loadData() {
       vehicleId: 'v' + r.vehicle_id,
       name:      r.service_type,
       dueDate:   dueStr || '',
-      status, daysOverdue, daysUntil,
+      dueMileage: r.due_mileage || null,
+      isRule:    false,
+      status, daysOverdue, daysUntil, milesOverdue, milesUntil,
     };
   });
 
-  // Derive health / openItems per vehicle from reminders
+  // ── Maintenance rules → additional service items ──
+  AppState.rules = rawRules;
+  rawRules.forEach(function(r) {
+    var vehicle = AppState.vehicles.find(function(v) { return v.id === 'v' + r.vehicle_id; });
+    var curMi   = vehicle ? vehicle.odometer : 0;
+    AppState.services.push(computeRuleService(r, curMi, today));
+  });
+
+  // Sort: overdue first, then warning, then ok
+  AppState.services.sort(function(a, b) {
+    var order = { overdue: 0, warning: 1, ok: 2 };
+    return (order[a.status] || 2) - (order[b.status] || 2);
+  });
+
+  // Derive health / openItems per vehicle from all service items
   AppState.vehicles.forEach(function(v) {
     var vr      = AppState.services.filter(function(s) { return s.vehicleId === v.id; });
     var overdue = vr.filter(function(s) { return s.status === 'overdue'; }).length;
@@ -232,6 +275,68 @@ function computeMonthlySpend() {
   }
 }
 
+
+/* ══════════════════════════════════════════
+   RULE SERVICE COMPUTATION
+══════════════════════════════════════════ */
+function computeRuleService(rule, currentMileage, todayArg) {
+  var today = todayArg || (function() { var d = new Date(); d.setHours(0,0,0,0); return d; })();
+
+  var dueDate = null;
+  if (rule.interval_days) {
+    var baseStr = rule.last_done_date
+      ? String(rule.last_done_date).slice(0, 10)
+      : String(rule.created_at).slice(0, 10);
+    var bp = baseStr.split('-').map(Number);
+    var base = new Date(bp[0], bp[1] - 1, bp[2]);
+    base.setDate(base.getDate() + rule.interval_days);
+    dueDate = base.getFullYear() + '-' +
+      String(base.getMonth() + 1).padStart(2, '0') + '-' +
+      String(base.getDate()).padStart(2, '0');
+  }
+
+  var dueMileage = null;
+  if (rule.interval_miles) {
+    var baseMi = (rule.last_done_mileage != null) ? rule.last_done_mileage : currentMileage;
+    dueMileage = baseMi + rule.interval_miles;
+  }
+
+  var status = 'ok', daysOverdue = 0, daysUntil = 999, milesOverdue = 0, milesUntil = 999;
+
+  if (dueDate) {
+    var dp = dueDate.split('-').map(Number);
+    var dueDateObj = new Date(dp[0], dp[1] - 1, dp[2]);
+    var diff = Math.round((dueDateObj - today) / 86400000);
+    if      (diff < 0)   { status = 'overdue'; daysOverdue = -diff; }
+    else if (diff <= 30) { status = 'warning';  daysUntil   = diff; }
+    else                 {                      daysUntil   = diff; }
+  }
+
+  if (dueMileage !== null) {
+    var mileDiff = dueMileage - currentMileage;
+    if (mileDiff <= 0) {
+      status = 'overdue'; milesOverdue = -mileDiff;
+    } else if (mileDiff <= 500) {
+      if (status !== 'overdue') status = 'warning';
+      milesUntil = mileDiff;
+    } else {
+      milesUntil = mileDiff;
+    }
+  }
+
+  return {
+    id:           'rule' + rule.id,
+    vehicleId:    'v' + rule.vehicle_id,
+    name:         rule.service_type,
+    dueDate:      dueDate || '',
+    dueMileage:   dueMileage,
+    isRule:       true,
+    ruleId:       rule.id,
+    intervalDays:  rule.interval_days,
+    intervalMiles: rule.interval_miles,
+    status, daysOverdue, daysUntil, milesOverdue, milesUntil,
+  };
+}
 
 /* ══════════════════════════════════════════
    RENDER FUNCTIONS
@@ -303,15 +408,21 @@ function renderServices() {
   }
 
   container.innerHTML = services.map(function(s) {
+    var dueParts = [];
+    if (s.dueDate)   dueParts.push(formatDate(s.dueDate));
+    if (s.dueMileage) dueParts.push(s.dueMileage.toLocaleString() + ' mi');
+    var ruleIcon = s.isRule
+      ? ' <i class="fa-solid fa-rotate" style="font-size:9px;color:var(--text-muted);vertical-align:middle;" title="Recurring rule"></i>'
+      : '';
     return '<div class="service-item" data-service-id="' + s.id + '" role="button" tabindex="0">' +
       '<div class="service-status ' + statusDotClass(s.status) + '"></div>' +
       '<div class="service-info">' +
-        '<div class="service-name">' + s.name + '</div>' +
+        '<div class="service-name">' + s.name + ruleIcon + '</div>' +
         '<div class="service-vehicle">' + vehicleLabel(s.vehicleId) + '</div>' +
       '</div>' +
       '<div class="service-due">' +
-        '<span class="service-due-date">' + (s.dueDate ? formatDate(s.dueDate) : '—') + '</span>' +
-        statusTag(s.status, s.daysOverdue, s.daysUntil) +
+        '<span class="service-due-date">' + (dueParts.length ? dueParts.join(' · ') : '—') + '</span>' +
+        statusTag(s) +
       '</div></div>';
   }).join('');
 
@@ -560,13 +671,22 @@ function closeModal() {
 function openServiceModal(serviceId) {
   var s = AppState.services.find(function(x){ return x.id === serviceId; });
   if (!s) return;
-  var v           = getVehicle(s.vehicleId);
-  var statusMap   = { overdue: 'tag-overdue', warning: 'tag-warning', ok: 'tag-ok' };
-  var statusLabel = s.status === 'overdue' ? 'Overdue ' + s.daysOverdue + ' days'
-                  : s.status === 'warning' ? 'Due in '  + s.daysUntil  + ' days'
-                  : 'On schedule';
+  var v = getVehicle(s.vehicleId);
 
-  var modal = createModal('Service Detail',
+  var ruleInfoHTML = '';
+  if (s.isRule) {
+    var parts = [];
+    if (s.intervalDays)  parts.push('Every ' + s.intervalDays + ' days');
+    if (s.intervalMiles) parts.push('Every ' + s.intervalMiles.toLocaleString() + ' mi');
+    ruleInfoHTML = '<div class="modal-detail-item"><span class="modal-detail-key">RULE INTERVAL</span>' +
+      '<span class="modal-detail-val">' + parts.join(' / ') + '</span></div>';
+  }
+
+  var actions = [{ label: 'Log as Completed', cls: 'btn-primary', action: 'complete' }];
+  if (s.isRule) actions.push({ label: 'Delete Rule', cls: 'btn-danger', action: 'delete-rule' });
+  actions.push({ label: 'Dismiss', cls: 'btn-secondary', action: 'dismiss' });
+
+  var modal = createModal(s.isRule ? 'Recurring Rule' : 'Service Reminder',
     '<div class="modal-detail-grid">' +
       '<div class="modal-detail-item"><span class="modal-detail-key">SERVICE</span>' +
         '<span class="modal-detail-val">' + s.name + '</span></div>' +
@@ -574,19 +694,27 @@ function openServiceModal(serviceId) {
         '<span class="modal-detail-val">' + (v ? v.year + ' ' + v.make + ' ' + v.model : '—') + '</span></div>' +
       '<div class="modal-detail-item"><span class="modal-detail-key">DUE DATE</span>' +
         '<span class="modal-detail-val">' + (s.dueDate ? formatDate(s.dueDate) : '—') + '</span></div>' +
+      '<div class="modal-detail-item"><span class="modal-detail-key">DUE MILEAGE</span>' +
+        '<span class="modal-detail-val">' + (s.dueMileage ? s.dueMileage.toLocaleString() + ' mi' : '—') + '</span></div>' +
       '<div class="modal-detail-item"><span class="modal-detail-key">STATUS</span>' +
-        '<span class="service-due-tag ' + statusMap[s.status] + '">' + statusLabel + '</span></div>' +
+        statusTag(s) + '</div>' +
       (v ? '<div class="modal-detail-item"><span class="modal-detail-key">CURRENT MILEAGE</span>' +
         '<span class="modal-detail-val">' + formatMileage(v.odometer) + '</span></div>' : '') +
+      ruleInfoHTML +
     '</div>',
-    [{ label: 'Log as Completed', cls: 'btn-primary',  action: 'complete' },
-     { label: 'Dismiss',          cls: 'btn-secondary', action: 'dismiss'  }]
+    actions
   );
 
   qsa('[data-modal-action]', modal).forEach(function(btn) {
     btn.addEventListener('click', async function() {
       btn.disabled = true;
-      if (btn.dataset.modalAction === 'complete') await logServiceComplete(serviceId);
+      var action = btn.dataset.modalAction;
+      if (action === 'complete') {
+        if (s.isRule) await logRuleComplete(serviceId);
+        else          await logServiceComplete(serviceId);
+      } else if (action === 'delete-rule') {
+        await deleteRule(serviceId);
+      }
       closeModal();
     });
   });
@@ -636,6 +764,88 @@ async function logServiceComplete(serviceId) {
     showToast('"' + s.name + '" marked as completed.', 'success');
   } catch (err) {
     showToast('Error saving service: ' + err.message, 'error');
+  }
+}
+
+async function logRuleComplete(serviceId) {
+  var svc = AppState.services.find(function(s){ return s.id === serviceId; });
+  if (!svc || !svc.isRule) return;
+
+  var v            = getVehicle(svc.vehicleId);
+  var numericVid   = parseInt(svc.vehicleId.slice(1));
+  var today        = new Date().toISOString().slice(0, 10);
+  var currentMi    = v ? v.odometer : 0;
+
+  try {
+    var result = await DataModel.addMaintenance({
+      vehicle_id:   numericVid,
+      service_type: svc.name,
+      date:         today,
+      mileage:      currentMi,
+      cost:         0,
+      location:     'Self / Unknown',
+      notes:        'Marked complete from schedule',
+    });
+    await DataModel.updateRuleComplete(svc.ruleId, {
+      last_done_date:    today,
+      last_done_mileage: currentMi,
+    });
+
+    AppState.maintenanceLog.unshift({
+      id: 'm' + result.id, vehicleId: svc.vehicleId,
+      date: today, service: svc.name,
+      mileage: currentMi, location: 'Self / Unknown', cost: 0,
+      notes: 'Marked complete from schedule',
+    });
+
+    // Update the rule in AppState and recompute its service item
+    var rule = AppState.rules.find(function(r){ return r.id === svc.ruleId; });
+    if (rule) {
+      rule.last_done_date    = today;
+      rule.last_done_mileage = currentMi;
+      var idx = AppState.services.findIndex(function(s){ return s.id === serviceId; });
+      if (idx !== -1) {
+        var newSvc = computeRuleService(rule, currentMi);
+        AppState.services.splice(idx, 1, newSvc);
+      }
+    }
+
+    // Re-sort services
+    AppState.services.sort(function(a, b) {
+      var order = { overdue: 0, warning: 1, ok: 2 };
+      return (order[a.status] || 2) - (order[b.status] || 2);
+    });
+
+    recomputeVehicleHealth();
+    renderServices();
+    renderStats();
+    renderMaintenanceLog();
+    computeMonthlySpend();
+    renderCostChart();
+
+    var nextDate = newSvc && newSvc.dueDate ? ' Next due: ' + formatDate(newSvc.dueDate) : '';
+    showToast('"' + svc.name + '" marked as completed.' + nextDate, 'success');
+  } catch (err) {
+    showToast('Error saving service: ' + err.message, 'error');
+  }
+}
+
+async function deleteRule(serviceId) {
+  var svc = AppState.services.find(function(s){ return s.id === serviceId; });
+  if (!svc || !svc.isRule) return;
+
+  try {
+    await DataModel.deleteRule(svc.ruleId);
+    AppState.services = AppState.services.filter(function(s){ return s.id !== serviceId; });
+    AppState.rules    = AppState.rules.filter(function(r){ return r.id !== svc.ruleId; });
+
+    recomputeVehicleHealth();
+    renderServices();
+    renderStats();
+    renderVehicleCards();
+    showToast('Rule "' + svc.name + '" deleted.', 'success');
+  } catch (err) {
+    showToast('Error deleting rule: ' + err.message, 'error');
   }
 }
 
@@ -745,6 +955,164 @@ async function submitAddService() {
   }
 }
 
+
+/* ── Add Maintenance Rule Modal ── */
+function openAddRuleModal() {
+  if (AppState.vehicles.length === 0) {
+    showToast('Add a vehicle first before creating a rule.', 'info');
+    return;
+  }
+  var activeId = AppState.activeVehicleId;
+  var opts = AppState.vehicles.map(function(v) {
+    var sel = (v.id === activeId) ? ' selected' : '';
+    return '<option value="' + v.id + '"' + sel + '>' + v.year + ' ' + v.make + ' ' + v.model + '</option>';
+  }).join('');
+
+  var modal = createModal('Add Maintenance Rule',
+    '<div class="modal-form">' +
+      '<div class="form-group"><label class="form-label" for="arVehicle">Vehicle</label>' +
+        '<select id="arVehicle" class="form-control">' + opts + '</select></div>' +
+      '<div class="form-group"><label class="form-label" for="arService">Service Type</label>' +
+        '<input id="arService" class="form-control" type="text" list="arServiceList" placeholder="e.g. Oil Change" />' +
+        '<datalist id="arServiceList">' +
+          '<option value="Oil Change">' +
+          '<option value="Tire Rotation">' +
+          '<option value="Air Filter Replacement">' +
+          '<option value="Cabin Air Filter">' +
+          '<option value="Brake Inspection">' +
+          '<option value="Coolant Flush">' +
+          '<option value="Transmission Fluid">' +
+          '<option value="Spark Plug Replacement">' +
+          '<option value="Battery Check">' +
+          '<option value="Wiper Blade Replacement">' +
+        '</datalist></div>' +
+      '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.08em;padding:4px 0 2px;">SET AT LEAST ONE INTERVAL</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="arDaysPreset">Time Interval</label>' +
+          '<select id="arDaysPreset" class="form-control">' +
+            '<option value="">— none —</option>' +
+            '<option value="30">30 days (Monthly)</option>' +
+            '<option value="90">90 days (Quarterly)</option>' +
+            '<option value="180">180 days (Semi-Annual)</option>' +
+            '<option value="365">365 days (Annual)</option>' +
+            '<option value="custom">Custom…</option>' +
+          '</select>' +
+          '<input id="arDays" class="form-control" type="number" placeholder="days" min="1" style="display:none;margin-top:6px;" /></div>' +
+        '<div class="form-group"><label class="form-label" for="arMilesPreset">Mileage Interval</label>' +
+          '<select id="arMilesPreset" class="form-control">' +
+            '<option value="">— none —</option>' +
+            '<option value="3000">3,000 miles</option>' +
+            '<option value="5000">5,000 miles</option>' +
+            '<option value="7500">7,500 miles</option>' +
+            '<option value="10000">10,000 miles</option>' +
+            '<option value="custom">Custom…</option>' +
+          '</select>' +
+          '<input id="arMiles" class="form-control" type="number" placeholder="miles" min="1" style="display:none;margin-top:6px;" /></div>' +
+      '</div>' +
+      '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.08em;padding:4px 0 2px;">LAST COMPLETED (OPTIONAL)</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="arLastDate">Date</label>' +
+          '<input id="arLastDate" class="form-control" type="date" /></div>' +
+        '<div class="form-group"><label class="form-label" for="arLastMileage">Mileage</label>' +
+          '<input id="arLastMileage" class="form-control" type="number" placeholder="e.g. 45000" min="0" /></div>' +
+      '</div>' +
+    '</div>',
+    [{ label: 'Save Rule', cls: 'btn-primary',  action: 'save'   },
+     { label: 'Cancel',    cls: 'btn-secondary', action: 'cancel' }]
+  );
+
+  // Show/hide custom inputs for preset selects
+  function wirePreset(presetId, inputId) {
+    var preset = qs('#' + presetId, modal);
+    var input  = qs('#' + inputId,  modal);
+    if (!preset || !input) return;
+    preset.addEventListener('change', function() {
+      if (preset.value === 'custom') {
+        input.style.display = '';
+        input.focus();
+      } else {
+        input.style.display = 'none';
+        input.value = '';
+      }
+    });
+  }
+  wirePreset('arDaysPreset', 'arDays');
+  wirePreset('arMilesPreset', 'arMiles');
+
+  qsa('[data-modal-action]', modal).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (btn.dataset.modalAction === 'save') {
+        btn.disabled = true;
+        if (await submitAddRule()) closeModal();
+        else btn.disabled = false;
+      } else {
+        closeModal();
+      }
+    });
+  });
+}
+
+async function submitAddRule() {
+  function val(id) { var el = qs('#' + id); return el ? el.value.trim() : ''; }
+
+  var vehicleId   = val('arVehicle');
+  var serviceType = val('arService');
+
+  // Resolve interval days
+  var daysPreset = val('arDaysPreset');
+  var intervalDays = daysPreset === 'custom' ? parseInt(val('arDays')) || 0
+                   : daysPreset ? parseInt(daysPreset) : 0;
+
+  // Resolve interval miles
+  var milesPreset = val('arMilesPreset');
+  var intervalMiles = milesPreset === 'custom' ? parseInt(val('arMiles')) || 0
+                    : milesPreset ? parseInt(milesPreset) : 0;
+
+  var lastDate    = val('arLastDate')    || null;
+  var lastMileage = parseInt(val('arLastMileage')) || null;
+
+  if (!vehicleId || !serviceType) {
+    showToast('Please select a vehicle and enter a service type.', 'error');
+    return false;
+  }
+  if (!intervalDays && !intervalMiles) {
+    showToast('Please set at least one interval (time or mileage).', 'error');
+    return false;
+  }
+
+  var numericVid = parseInt(vehicleId.slice(1));
+  try {
+    var result = await DataModel.addRule({
+      vehicle_id:        numericVid,
+      service_type:      serviceType,
+      interval_days:     intervalDays  || null,
+      interval_miles:    intervalMiles || null,
+      last_done_date:    lastDate,
+      last_done_mileage: lastMileage,
+    });
+
+    AppState.rules.push(result);
+    var vehicle = getVehicle(vehicleId);
+    var curMi   = vehicle ? vehicle.odometer : 0;
+    var newSvc  = computeRuleService(result, curMi);
+    AppState.services.push(newSvc);
+
+    AppState.services.sort(function(a, b) {
+      var order = { overdue: 0, warning: 1, ok: 2 };
+      return (order[a.status] || 2) - (order[b.status] || 2);
+    });
+
+    recomputeVehicleHealth();
+    renderServices();
+    renderStats();
+    renderVehicleCards();
+    showToast('Rule "' + serviceType + '" created!', 'success');
+    return true;
+  } catch (err) {
+    showToast('Error creating rule: ' + err.message, 'error');
+    return false;
+  }
+}
 
 /* ── Edit Maintenance Modal ── */
 function openEditMaintenanceModal(maintenanceId) {
@@ -1183,8 +1551,9 @@ function confirmDeleteVehicle(vehicleId) {
         try {
           await DataModel.deleteVehicle(numericId);
 
-          AppState.vehicles = AppState.vehicles.filter(function(x) { return x.id !== vehicleId; });
+          AppState.vehicles       = AppState.vehicles.filter(function(x) { return x.id !== vehicleId; });
           AppState.services       = AppState.services.filter(function(s) { return s.vehicleId !== vehicleId; });
+          AppState.rules          = AppState.rules.filter(function(r) { return 'v' + r.vehicle_id !== vehicleId; });
           AppState.maintenanceLog = AppState.maintenanceLog.filter(function(m) { return m.vehicleId !== vehicleId; });
           AppState.fuelLog        = AppState.fuelLog.filter(function(f) { return f.vehicleId !== vehicleId; });
 
@@ -1390,6 +1759,9 @@ function switchView(viewName) {
     if (viewName === 'fuel') {
       primaryBtn.innerHTML = '<i class="fa-solid fa-gas-pump"></i> Log Fuel';
       primaryBtn.setAttribute('data-action', 'add-fuel');
+    } else if (viewName === 'schedule') {
+      primaryBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Add Rule';
+      primaryBtn.setAttribute('data-action', 'add-rule');
     } else {
       primaryBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Log Service';
       primaryBtn.setAttribute('data-action', 'log-service');
@@ -1581,6 +1953,7 @@ function initButtons() {
     var action = btn.getAttribute('data-action');
     if (action === 'log-service') openAddServiceModal();
     if (action === 'add-fuel')    openAddFuelModal();
+    if (action === 'add-rule')    openAddRuleModal();
     if (action === 'export')      handleExport();
   });
 }

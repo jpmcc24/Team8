@@ -112,5 +112,22 @@ const DataModel = (function () {
         completeReminder: async function (id) {
             return request('PUT', '/api/reminders/' + id + '/complete');
         },
+
+        //////////////////////////////
+        // MAINTENANCE RULES
+        //////////////////////////////
+        getRules: async function () {
+            const data = await request('GET', '/api/rules');
+            return data || [];
+        },
+        addRule: async function (entry) {
+            return request('POST', '/api/rules', entry);
+        },
+        updateRuleComplete: async function (id, data) {
+            return request('PUT', '/api/rules/' + id + '/complete', data);
+        },
+        deleteRule: async function (id) {
+            return request('DELETE', '/api/rules/' + id);
+        },
     };
 })();

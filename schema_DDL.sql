@@ -50,3 +50,15 @@ CREATE TABLE reminders (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
 );
+
+CREATE TABLE maintenance_rules (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    vehicle_id INT NOT NULL,
+    service_type VARCHAR(100) NOT NULL,
+    interval_days INT,
+    interval_miles INT,
+    last_done_date DATE,
+    last_done_mileage INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+);
