@@ -877,7 +877,32 @@ function openAddServiceModal() {
       '<div class="form-group"><label class="form-label" for="fsVehicle">Vehicle</label>' +
         '<select id="fsVehicle" class="form-control">' + (activeId ? '' : '<option value="" disabled selected>Select a vehicle…</option>') + opts + '</select></div>' +
       '<div class="form-group"><label class="form-label" for="fsService">Service Type</label>' +
-        '<input id="fsService" class="form-control" type="text" placeholder="e.g. Oil Change" /></div>' +
+        '<input id="fsService" class="form-control" type="text" placeholder="e.g. Oil Change" list="fsServiceList" autocomplete="off" />' +
+        '<datalist id="fsServiceList">' +
+          '<option value="Oil Change" />' +
+          '<option value="Tire Rotation" />' +
+          '<option value="Tire Replacement" />' +
+          '<option value="Wheel Alignment" />' +
+          '<option value="Brake Inspection" />' +
+          '<option value="Brake Pad Replacement" />' +
+          '<option value="Brake Fluid Flush" />' +
+          '<option value="Air Filter Replacement" />' +
+          '<option value="Cabin Air Filter Replacement" />' +
+          '<option value="Battery Replacement" />' +
+          '<option value="Spark Plug Replacement" />' +
+          '<option value="Coolant Flush" />' +
+          '<option value="Transmission Fluid Change" />' +
+          '<option value="Differential Fluid Change" />' +
+          '<option value="Power Steering Fluid" />' +
+          '<option value="Serpentine Belt Replacement" />' +
+          '<option value="Timing Belt Replacement" />' +
+          '<option value="Wiper Blade Replacement" />' +
+          '<option value="Fuel Filter Replacement" />' +
+          '<option value="AC Service" />' +
+          '<option value="Check Engine Diagnostic" />' +
+          '<option value="Fuel System Cleaning" />' +
+          '<option value="Multi-Point Inspection" />' +
+        '</datalist></div>' +
       '<div class="form-row">' +
         '<div class="form-group"><label class="form-label" for="fsDate">Date</label>' +
           '<input id="fsDate" class="form-control" type="date" value="' + new Date().toISOString().slice(0, 10) + '" /></div>' +
@@ -896,6 +921,22 @@ function openAddServiceModal() {
     [{ label: 'Save Service', cls: 'btn-primary',  action: 'save'   },
      { label: 'Cancel',       cls: 'btn-secondary', action: 'cancel' }]
   );
+
+  // Pre-fill mileage from the selected vehicle's last known odometer
+  var mileageInput  = qs('#fsMileage', modal);
+  var vehicleSelect = qs('#fsVehicle', modal);
+
+  function prefillMileage(vid) {
+    var v = vid ? getVehicle(vid) : null;
+    if (mileageInput) mileageInput.value = (v && v.odometer > 0) ? v.odometer : '';
+  }
+
+  if (vehicleSelect) {
+    prefillMileage(vehicleSelect.value);
+    vehicleSelect.addEventListener('change', function() {
+      prefillMileage(vehicleSelect.value);
+    });
+  }
 
   qsa('[data-modal-action]', modal).forEach(function(btn) {
     btn.addEventListener('click', async function() {
