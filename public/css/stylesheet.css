@@ -1,32 +1,32 @@
 /* ============================================
-   VEHICLE MAINTENANCE TRACKER — styles.css
-   Team GR8 | Industrial Utilitarian Aesthetic
+   AUTOTRACK — styles.css
+   Premium Automotive Dashboard
    ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=Barlow:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* ── CSS Variables ── */
 :root {
-  --bg:           #0d0f12;
-  --surface:      #151820;
-  --surface-2:    #1c2030;
-  --border:       #252a38;
-  --border-bright:#353d52;
-  --accent:       #e8c547;
-  --accent-dim:   #a68c2e;
-  --accent-glow:  rgba(232, 197, 71, 0.12);
-  --red:          #e05c5c;
-  --green:        #4caf81;
-  --blue:         #5b8dee;
-  --text:         #d8dce8;
-  --text-dim:     #7a8299;
-  --text-muted:   #454d63;
+  --bg:           #f5efe6;
+  --surface:      #ebe0d0;
+  --surface-2:    #e0d2be;
+  --border:       #d4c4ac;
+  --border-bright:#c4b098;
+  --accent:       #6a8f6e;
+  --accent-dim:   #4d6e51;
+  --accent-glow:  rgba(106, 143, 110, 0.12);
+  --red:          #c0603a;
+  --green:        #6a8f6e;
+  --blue:         #5a7a9a;
+  --text:         #2c1f14;
+  --text-dim:     #7a6555;
+  --text-muted:   #a89380;
   --font-head:    'Barlow Condensed', sans-serif;
-  --font-mono:    'IBM Plex Mono', monospace;
+  --font-mono:    'JetBrains Mono', monospace;
   --font-body:    'Barlow', sans-serif;
-  --radius:       4px;
-  --radius-lg:    8px;
-  --transition:   0.18s ease;
+  --radius:       3px;
+  --radius-lg:    6px;
+  --transition:   0.15s ease;
 }
 
 /* ── Reset & Base ── */
@@ -43,18 +43,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Subtle grid texture on the body */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(232,197,71,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(232,197,71,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
-}
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -79,8 +67,9 @@ body::before {
   gap: 16px;
   padding: 0 24px;
   height: 56px;
-  background: var(--surface);
+  background: linear-gradient(180deg, #f0e8d8 0%, var(--surface) 100%);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(106, 143, 110, 0.25);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -362,7 +351,7 @@ body::before {
   color: #000;
   border-color: var(--accent);
 }
-.btn-primary:hover { background: #f0d060; border-color: #f0d060; }
+.btn-primary:hover { background: #7aaa7e; border-color: #7aaa7e; }
 
 .btn-secondary {
   background: var(--surface-2);
@@ -400,7 +389,7 @@ body::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(232,197,71,0.04) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgba(106,143,110,0.06) 0%, transparent 60%);
   pointer-events: none;
 }
 
@@ -556,9 +545,9 @@ body::before {
   font-weight: 500;
   margin-top: 2px;
 }
-.tag-ok      { background: rgba(76, 175, 129, 0.15); color: var(--green); }
-.tag-warning { background: rgba(232, 197, 71, 0.15); color: var(--accent); }
-.tag-overdue { background: rgba(224, 92, 92, 0.15); color: var(--red); }
+.tag-ok      { background: rgba(106, 143, 110, 0.15); color: var(--green); }
+.tag-warning { background: rgba(192,  96,  58, 0.12); color: #a04828; }
+.tag-overdue { background: rgba(192,  96,  58, 0.20); color: var(--red); }
 
 /* ── Fuel Log ── */
 .fuel-entry {
@@ -623,7 +612,7 @@ body::before {
 }
 .vehicle-card.active {
   border-color: var(--accent-dim);
-  box-shadow: 0 0 0 1px var(--accent-dim), 0 4px 24px rgba(232,197,71,0.08);
+  box-shadow: 0 0 0 1px var(--accent-dim), 0 4px 24px rgba(106,143,110,0.15);
 }
 
 /* Banner */
@@ -684,9 +673,9 @@ body::before {
   letter-spacing: 0.08em;
   flex-shrink: 0;
 }
-.health-good { background: rgba(76,175,129,0.15); color: var(--green); border: 1px solid rgba(76,175,129,0.25); }
-.health-fair { background: rgba(232,197,71,0.12); color: var(--accent); border: 1px solid rgba(232,197,71,0.25); }
-.health-poor { background: rgba(224,92,92,0.15);  color: var(--red);    border: 1px solid rgba(224,92,92,0.25); }
+.health-good { background: rgba(106,143,110,0.15); color: var(--green); border: 1px solid rgba(106,143,110,0.35); }
+.health-fair { background: rgba(192, 96, 58,0.12); color: #a04828;      border: 1px solid rgba(192, 96, 58,0.30); }
+.health-poor { background: rgba(192, 96, 58,0.20); color: var(--red);   border: 1px solid rgba(192, 96, 58,0.40); }
 
 /* Meta grid */
 .vehicle-meta {

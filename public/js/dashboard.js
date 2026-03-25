@@ -8,7 +8,7 @@
 /* ══════════════════════════════════════════
    CONSTANTS
 ══════════════════════════════════════════ */
-const VEHICLE_COLORS = ['#e8c547', '#5b8dee', '#4caf81', '#e05c5c', '#9b59b6', '#f39c12'];
+const VEHICLE_COLORS = ['#6a8f6e', '#c0603a', '#5a7a9a', '#a07848', '#8a6e9a', '#7a9e8a'];
 
 /* ══════════════════════════════════════════
    DATA STORE  (populated from API on load)
@@ -1639,7 +1639,7 @@ var VIEW_CONFIG = {
   dashboard:   {
     title:    'Fleet <span>Dashboard</span>',
     subtitle: function() {
-      return '// ' + AppState.vehicles.length + ' VEHICLE' +
+      return AppState.vehicles.length + ' VEHICLE' +
              (AppState.vehicles.length !== 1 ? 'S' : '') + ' TRACKED';
     },
     sections: ['sectionStats', 'sectionRow1', 'sectionRow2', 'panelMaintenance'],
@@ -1647,35 +1647,35 @@ var VIEW_CONFIG = {
   },
   vehicles:    {
     title:    'My <span>Vehicles</span>',
-    subtitle: function() { return '// ' + AppState.vehicles.length + ' REGISTERED'; },
+    subtitle: function() { return AppState.vehicles.length + ' REGISTERED'; },
     panel: 'panelVehicles',
   },
   maintenance: {
     title:    'Maintenance <span>Log</span>',
-    subtitle: function() { return '// ' + AppState.maintenanceLog.length + ' RECORDS'; },
+    subtitle: function() { return AppState.maintenanceLog.length + ' RECORDS'; },
     panel: 'panelMaintenance',
   },
   schedule:    {
     title:    'Service <span>Schedule</span>',
     subtitle: function() {
       var n = AppState.services.filter(function(s){ return s.status === 'overdue'; }).length;
-      return '// ' + AppState.services.length + ' SERVICES' + (n > 0 ? ' · ' + n + ' OVERDUE' : '');
+      return AppState.services.length + ' SERVICES' + (n > 0 ? ' · ' + n + ' OVERDUE' : '');
     },
     panel: 'panelSchedule',
   },
   fuel:        {
     title:    'Fuel <span>Tracker</span>',
-    subtitle: function() { return '// ' + AppState.fuelLog.length + ' ENTRIES'; },
+    subtitle: function() { return AppState.fuelLog.length + ' ENTRIES'; },
     panel: 'panelFuelLog',
   },
   analytics:   {
     title:    'Cost <span>Analytics</span>',
-    subtitle: function() { return '// MONTHLY SPENDING BREAKDOWN'; },
+    subtitle: function() { return 'MONTHLY SPENDING BREAKDOWN'; },
     panel: 'panelCostChart',
   },
   profile:     {
     title:    'My <span>Profile</span>',
-    subtitle: function() { return '// ACCOUNT DETAILS'; },
+    subtitle: function() { return 'ACCOUNT DETAILS'; },
     panel: 'panelProfile',
   },
 };
