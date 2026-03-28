@@ -36,6 +36,7 @@ CREATE TABLE fuel_log (
     gallons DECIMAL(5,2) NOT NULL,
     price_per_gallon DECIMAL(5,2) NOT NULL,
     mileage INT NOT NULL,
+    station VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
 );
