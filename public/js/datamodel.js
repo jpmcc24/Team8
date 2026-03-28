@@ -98,6 +98,12 @@ const DataModel = (function () {
         addFuel: async function (entry) {
             return request('POST', '/api/fuel', entry);
         },
+        updateFuel: async function (id, entry) {
+            return request('PUT', '/api/fuel/' + id, entry);
+        },
+        deleteFuel: async function (id) {
+            return request('DELETE', '/api/fuel/' + id);
+        },
 
         //////////////////////////////
         // REMINDERS
@@ -122,6 +128,9 @@ const DataModel = (function () {
         },
         addRule: async function (entry) {
             return request('POST', '/api/rules', entry);
+        },
+        updateRule: async function (id, data) {
+            return request('PUT', '/api/rules/' + id, data);
         },
         updateRuleComplete: async function (id, data) {
             return request('PUT', '/api/rules/' + id + '/complete', data);
