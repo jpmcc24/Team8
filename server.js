@@ -311,6 +311,12 @@ app.post('/api/maintenance', authenticateToken, async (req, res) => {
             'INSERT INTO maintenance_log (vehicle_id, service_type, date, mileage, cost, location, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [vehicle_id, service_type, date, mileage || 0, cost || 0, location || '', notes || '']
         );
+        if (mileage > 0) {
+            await connection.execute(
+                'UPDATE vehicles SET current_mileage = ? WHERE id = ? AND current_mileage < ?',
+                [mileage, vehicle_id, mileage]
+            );
+        }
         await connection.end();
         res.status(201).json({ id: result.insertId, vehicle_id, service_type, date, mileage, cost, location, notes });
     } catch (error) {
@@ -403,14 +409,67 @@ app.post('/api/fuel', authenticateToken, async (req, res) => {
             return res.status(404).json({ message: 'Vehicle not found.' });
         }
         const [result] = await connection.execute(
-            'INSERT INTO fuel_log (vehicle_id, date, gallons, price_per_gallon, mileage) VALUES (?, ?, ?, ?, ?)',
-            [vehicle_id, date, gallons, price_per_gallon || 0, mileage || 0]
+            'INSERT INTO fuel_log (vehicle_id, date, gallons, price_per_gallon, mileage, station) VALUES (?, ?, ?, ?, ?, ?)',
+            [vehicle_id, date, gallons, price_per_gallon || 0, mileage || 0, station || '']
         );
+        if (mileage > 0) {
+            await connection.execute(
+                'UPDATE vehicles SET current_mileage = ? WHERE id = ? AND current_mileage < ?',
+                [mileage, vehicle_id, mileage]
+            );
+        }
         await connection.end();
         res.status(201).json({ id: result.insertId, vehicle_id, date, gallons, price_per_gallon, mileage, station });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error adding fuel entry.' });
+    }
+});
+
+// Route: Update a fuel entry
+app.put('/api/fuel/:id', authenticateToken, async (req, res) => {
+    const { date, gallons, price_per_gallon, mileage, station } = req.body;
+    if (!date || !gallons) {
+        return res.status(400).json({ message: 'date and gallons are required.' });
+    }
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            `UPDATE fuel_log f
+             JOIN vehicles v ON f.vehicle_id = v.id
+             SET f.date = ?, f.gallons = ?, f.price_per_gallon = ?, f.mileage = ?, f.station = ?
+             WHERE f.id = ? AND v.user_email = ?`,
+            [date, gallons, price_per_gallon || 0, mileage || 0, station || '', req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Fuel entry not found.' });
+        }
+        res.status(200).json({ id: req.params.id, date, gallons, price_per_gallon, mileage });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error updating fuel entry.' });
+    }
+});
+
+// Route: Delete a fuel entry
+app.delete('/api/fuel/:id', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            `DELETE f FROM fuel_log f
+             JOIN vehicles v ON f.vehicle_id = v.id
+             WHERE f.id = ? AND v.user_email = ?`,
+            [req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Fuel entry not found.' });
+        }
+        res.status(200).json({ message: 'Fuel entry deleted.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error deleting fuel entry.' });
     }
 });
 
@@ -532,6 +591,34 @@ app.post('/api/rules', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error creating maintenance rule.' });
+    }
+});
+
+app.put('/api/rules/:id', authenticateToken, async (req, res) => {
+    const { service_type, interval_days, interval_miles, last_done_date, last_done_mileage } = req.body;
+    if (!service_type) {
+        return res.status(400).json({ message: 'service_type is required.' });
+    }
+    if (!interval_days && !interval_miles) {
+        return res.status(400).json({ message: 'At least one interval is required.' });
+    }
+    try {
+        const connection = await createConnection();
+        const [result] = await connection.execute(
+            `UPDATE maintenance_rules r
+             JOIN vehicles v ON r.vehicle_id = v.id
+             SET r.service_type = ?, r.interval_days = ?, r.interval_miles = ?, r.last_done_date = ?, r.last_done_mileage = ?
+             WHERE r.id = ? AND v.user_email = ?`,
+            [service_type, interval_days || null, interval_miles || null, last_done_date || null, last_done_mileage || null, req.params.id, req.user.email]
+        );
+        await connection.end();
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Rule not found.' });
+        }
+        res.status(200).json({ id: req.params.id, service_type, interval_days, interval_miles, last_done_date, last_done_mileage });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error updating rule.' });
     }
 });
 

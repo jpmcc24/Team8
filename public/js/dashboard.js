@@ -263,6 +263,10 @@ function computeMonthlySpend() {
     var key = String(m.date).slice(0, 7); // YYYY-MM
     byMonth[key] = (byMonth[key] || 0) + (m.cost || 0);
   });
+  AppState.fuelLog.forEach(function(f) {
+    var key = String(f.date).slice(0, 7);
+    byMonth[key] = (byMonth[key] || 0) + (f.cost || 0);
+  });
 
   var names = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
   var today = new Date();
@@ -345,15 +349,26 @@ function renderStats() {
   var overdueCount = AppState.services.filter(function(s){ return s.status === 'overdue'; }).length;
   var lastSpend    = AppState.monthlySpend.length > 0
     ? AppState.monthlySpend[AppState.monthlySpend.length - 1].amount : 0;
-  var total  = AppState.vehicles.reduce(function(s, v){ return s + v.avgMpg; }, 0);
-  var avgMpg = AppState.vehicles.length > 0
-    ? (total / AppState.vehicles.length).toFixed(1) : '—';
+  var activeVehicle = AppState.activeVehicleId ? getVehicle(AppState.activeVehicleId) : null;
+  var mpgVehicles   = AppState.vehicles.filter(function(v) { return v.avgMpg > 0; });
+  var avgMpg, mpgSubText;
+
+  if (activeVehicle) {
+    avgMpg     = activeVehicle.avgMpg > 0 ? activeVehicle.avgMpg.toFixed(1) : '—';
+    mpgSubText = activeVehicle.year + ' ' + activeVehicle.make + ' ' + activeVehicle.model;
+  } else {
+    avgMpg     = mpgVehicles.length > 0
+      ? (mpgVehicles.reduce(function(s, v) { return s + v.avgMpg; }, 0) / mpgVehicles.length).toFixed(1) : '—';
+    mpgSubText = mpgVehicles.length > 1 ? 'Avg across ' + mpgVehicles.length + ' vehicles' : 'No fuel data yet';
+  }
 
   function set(id, val) { var el = qs('#' + id); if (el) el.textContent = val; }
   set('statVehicles', AppState.vehicles.length);
   set('statOverdue',  overdueCount);
   set('statSpend',    '$' + lastSpend);
   set('statMpg',      avgMpg);
+  var mpgSub = qs('#statMpgSub');
+  if (mpgSub) mpgSub.textContent = mpgSubText;
 
   var badge = qs('#navOverdueBadge');
   if (badge) {
@@ -534,12 +549,18 @@ function renderFuelLog() {
   var container = qs('#fuelList');
   if (!container) return;
 
-  if (AppState.fuelLog.length === 0) {
-    container.innerHTML = '<div class="empty-state">No fuel entries yet.</div>';
+  var log = AppState.activeVehicleId
+    ? AppState.fuelLog.filter(function(f) { return f.vehicleId === AppState.activeVehicleId; })
+    : AppState.fuelLog;
+  var displayLog = (_currentView !== 'fuel') ? log.slice(0, 5) : log;
+
+  if (displayLog.length === 0) {
+    var msg = AppState.activeVehicleId ? 'No fuel entries for this vehicle.' : 'No fuel entries yet.';
+    container.innerHTML = '<div class="empty-state">' + msg + '</div>';
     return;
   }
 
-  container.innerHTML = AppState.fuelLog.map(function(f) {
+  container.innerHTML = displayLog.map(function(f) {
     return '<div class="fuel-entry">' +
       '<div class="fuel-icon"><i class="fa-solid fa-gas-pump"></i></div>' +
       '<div class="fuel-info">' +
@@ -554,8 +575,24 @@ function renderFuelLog() {
         '<div class="fuel-stat-item"><span class="fuel-stat-val" style="color:' +
           mpgColor(f.mpg) + '">' + (f.mpg > 0 ? f.mpg : '—') + '</span>' +
           '<span class="fuel-stat-key">MPG</span></div>' +
-      '</div></div>';
+      '</div>' +
+      '<div style="display:flex;gap:4px;align-items:center;margin-left:8px;">' +
+        '<button type="button" class="fuel-edit-btn" style="font-size:11px;padding:4px 8px;background:var(--surface-2);color:var(--text);border:1px solid var(--border-bright);border-radius:var(--radius);cursor:pointer;" data-id="' + f.id + '"><i class="fa-solid fa-pen"></i></button>' +
+        '<button type="button" class="fuel-delete-btn" style="font-size:11px;padding:4px 8px;background:rgba(224,92,92,0.15);color:var(--red);border:1px solid var(--red);border-radius:var(--radius);cursor:pointer;" data-id="' + f.id + '"><i class="fa-solid fa-trash"></i></button>' +
+      '</div>' +
+    '</div>';
   }).join('');
+
+  if (_currentView !== 'fuel' && log.length > 5) {
+    container.insertAdjacentHTML('beforeend', '<div style="text-align:center;padding:8px;font-family:var(--font-mono);font-size:11px;color:var(--text-muted);">+ ' + (log.length - 5) + ' more — <a href="#" data-nav="fuel" style="color:var(--accent);">View all</a></div>');
+  }
+
+  qsa('.fuel-edit-btn', container).forEach(function(btn) {
+    btn.addEventListener('click', function() { openEditFuelModal(btn.dataset.id); });
+  });
+  qsa('.fuel-delete-btn', container).forEach(function(btn) {
+    btn.addEventListener('click', function() { confirmDeleteFuel(btn.dataset.id); });
+  });
 }
 
 function renderMaintenanceLog() {
@@ -613,6 +650,8 @@ function selectVehicle(id) {
   renderVehicleCards();
   renderServices();
   renderMaintenanceLog();
+  renderFuelLog();
+  renderStats();
 }
 
 
@@ -683,7 +722,10 @@ function openServiceModal(serviceId) {
   }
 
   var actions = [{ label: 'Log as Completed', cls: 'btn-primary', action: 'complete' }];
-  if (s.isRule) actions.push({ label: 'Delete Rule', cls: 'btn-danger', action: 'delete-rule' });
+  if (s.isRule) {
+    actions.push({ label: 'Edit Rule',   cls: 'btn-secondary', action: 'edit-rule'   });
+    actions.push({ label: 'Delete Rule', cls: 'btn-danger',    action: 'delete-rule' });
+  }
   actions.push({ label: 'Dismiss', cls: 'btn-secondary', action: 'dismiss' });
 
   var modal = createModal(s.isRule ? 'Recurring Rule' : 'Service Reminder',
@@ -712,6 +754,10 @@ function openServiceModal(serviceId) {
       if (action === 'complete') {
         if (s.isRule) await logRuleComplete(serviceId);
         else          await logServiceComplete(serviceId);
+      } else if (action === 'edit-rule') {
+        closeModal();
+        openEditRuleModal(serviceId);
+        return;
       } else if (action === 'delete-rule') {
         await deleteRule(serviceId);
       }
@@ -866,6 +912,10 @@ function recomputeVehicleHealth() {
 
 /* ── Add Service Modal ── */
 function openAddServiceModal() {
+  if (AppState.vehicles.length === 0) {
+    showToast('Add a vehicle first before logging a service.', 'info');
+    return;
+  }
   var activeId = AppState.activeVehicleId;
   var opts = AppState.vehicles.map(function(v) {
     var sel = (v.id === activeId) ? ' selected' : '';
@@ -1155,6 +1205,151 @@ async function submitAddRule() {
   }
 }
 
+/* ── Edit Rule Modal ── */
+function openEditRuleModal(serviceId) {
+  var svc  = AppState.services.find(function(s) { return s.id === serviceId; });
+  if (!svc || !svc.isRule) return;
+  var rule = AppState.rules.find(function(r) { return r.id === svc.ruleId; });
+  if (!rule) return;
+  var v = getVehicle(svc.vehicleId);
+
+  function daysToPreset(d) {
+    return (d === 30 || d === 90 || d === 180 || d === 365) ? String(d) : (d ? 'custom' : '');
+  }
+  function milesToPreset(m) {
+    return (m === 3000 || m === 5000 || m === 7500 || m === 10000) ? String(m) : (m ? 'custom' : '');
+  }
+
+  var daysPresetVal  = daysToPreset(rule.interval_days);
+  var milesPresetVal = milesToPreset(rule.interval_miles);
+
+  var modal = createModal('Edit Maintenance Rule',
+    '<div class="modal-form">' +
+      '<div class="form-group"><label class="form-label">Vehicle</label>' +
+        '<div class="form-control" style="opacity:0.6;cursor:default;">' + (v ? v.year + ' ' + v.make + ' ' + v.model : '—') + '</div></div>' +
+      '<div class="form-group"><label class="form-label" for="erService">Service Type</label>' +
+        '<input id="erService" class="form-control" type="text" list="erServiceList" value="' + rule.service_type + '" />' +
+        '<datalist id="erServiceList">' +
+          '<option value="Oil Change"><option value="Tire Rotation"><option value="Air Filter Replacement">' +
+          '<option value="Cabin Air Filter"><option value="Brake Inspection"><option value="Coolant Flush">' +
+          '<option value="Transmission Fluid"><option value="Spark Plug Replacement">' +
+          '<option value="Battery Check"><option value="Wiper Blade Replacement">' +
+        '</datalist></div>' +
+      '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.08em;padding:4px 0 2px;">SET AT LEAST ONE INTERVAL</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="erDaysPreset">Time Interval</label>' +
+          '<select id="erDaysPreset" class="form-control">' +
+            '<option value="">— none —</option>' +
+            '<option value="30"' + (daysPresetVal === '30'  ? ' selected' : '') + '>30 days (Monthly)</option>' +
+            '<option value="90"' + (daysPresetVal === '90'  ? ' selected' : '') + '>90 days (Quarterly)</option>' +
+            '<option value="180"' + (daysPresetVal === '180' ? ' selected' : '') + '>180 days (Semi-Annual)</option>' +
+            '<option value="365"' + (daysPresetVal === '365' ? ' selected' : '') + '>365 days (Annual)</option>' +
+            '<option value="custom"' + (daysPresetVal === 'custom' ? ' selected' : '') + '>Custom…</option>' +
+          '</select>' +
+          '<input id="erDays" class="form-control" type="number" placeholder="days" min="1" value="' + (daysPresetVal === 'custom' ? rule.interval_days : '') + '" style="' + (daysPresetVal === 'custom' ? '' : 'display:none;') + 'margin-top:6px;" /></div>' +
+        '<div class="form-group"><label class="form-label" for="erMilesPreset">Mileage Interval</label>' +
+          '<select id="erMilesPreset" class="form-control">' +
+            '<option value="">— none —</option>' +
+            '<option value="3000"'  + (milesPresetVal === '3000'  ? ' selected' : '') + '>3,000 miles</option>' +
+            '<option value="5000"'  + (milesPresetVal === '5000'  ? ' selected' : '') + '>5,000 miles</option>' +
+            '<option value="7500"'  + (milesPresetVal === '7500'  ? ' selected' : '') + '>7,500 miles</option>' +
+            '<option value="10000"' + (milesPresetVal === '10000' ? ' selected' : '') + '>10,000 miles</option>' +
+            '<option value="custom"' + (milesPresetVal === 'custom' ? ' selected' : '') + '>Custom…</option>' +
+          '</select>' +
+          '<input id="erMiles" class="form-control" type="number" placeholder="miles" min="1" value="' + (milesPresetVal === 'custom' ? rule.interval_miles : '') + '" style="' + (milesPresetVal === 'custom' ? '' : 'display:none;') + 'margin-top:6px;" /></div>' +
+      '</div>' +
+      '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.08em;padding:4px 0 2px;">LAST COMPLETED (OPTIONAL)</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="erLastDate">Date</label>' +
+          '<input id="erLastDate" class="form-control" type="date" value="' + (rule.last_done_date ? String(rule.last_done_date).slice(0,10) : '') + '" /></div>' +
+        '<div class="form-group"><label class="form-label" for="erLastMileage">Mileage</label>' +
+          '<input id="erLastMileage" class="form-control" type="number" placeholder="e.g. 45000" min="0" value="' + (rule.last_done_mileage != null ? rule.last_done_mileage : '') + '" /></div>' +
+      '</div>' +
+    '</div>',
+    [{ label: 'Save Changes', cls: 'btn-primary',  action: 'save'   },
+     { label: 'Cancel',       cls: 'btn-secondary', action: 'cancel' }]
+  );
+
+  function wirePreset(presetId, inputId) {
+    var preset = qs('#' + presetId, modal);
+    var input  = qs('#' + inputId,  modal);
+    if (!preset || !input) return;
+    preset.addEventListener('change', function() {
+      if (preset.value === 'custom') { input.style.display = ''; input.focus(); }
+      else { input.style.display = 'none'; input.value = ''; }
+    });
+  }
+  wirePreset('erDaysPreset', 'erDays');
+  wirePreset('erMilesPreset', 'erMiles');
+
+  qsa('[data-modal-action]', modal).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (btn.dataset.modalAction === 'save') {
+        btn.disabled = true;
+        if (await submitEditRule(serviceId)) closeModal();
+        else btn.disabled = false;
+      } else {
+        closeModal();
+      }
+    });
+  });
+}
+
+async function submitEditRule(serviceId) {
+  function val(id) { var el = qs('#' + id); return el ? el.value.trim() : ''; }
+  var svc  = AppState.services.find(function(s) { return s.id === serviceId; });
+  if (!svc) return false;
+  var rule = AppState.rules.find(function(r) { return r.id === svc.ruleId; });
+  if (!rule) return false;
+
+  var serviceType = val('erService');
+  var daysPreset  = val('erDaysPreset');
+  var intervalDays  = daysPreset === 'custom' ? parseInt(val('erDays'))  || 0 : daysPreset  ? parseInt(daysPreset)  : 0;
+  var milesPreset = val('erMilesPreset');
+  var intervalMiles = milesPreset === 'custom' ? parseInt(val('erMiles')) || 0 : milesPreset ? parseInt(milesPreset) : 0;
+  var lastDate    = val('erLastDate')    || null;
+  var lastMileage = parseInt(val('erLastMileage')) || null;
+
+  if (!serviceType) { showToast('Please enter a service type.', 'error'); return false; }
+  if (!intervalDays && !intervalMiles) { showToast('Please set at least one interval.', 'error'); return false; }
+
+  try {
+    await DataModel.updateRule(rule.id, {
+      service_type:      serviceType,
+      interval_days:     intervalDays  || null,
+      interval_miles:    intervalMiles || null,
+      last_done_date:    lastDate,
+      last_done_mileage: lastMileage,
+    });
+
+    rule.service_type      = serviceType;
+    rule.interval_days     = intervalDays  || null;
+    rule.interval_miles    = intervalMiles || null;
+    rule.last_done_date    = lastDate;
+    rule.last_done_mileage = lastMileage;
+
+    var v     = getVehicle(svc.vehicleId);
+    var curMi = v ? v.odometer : 0;
+    var idx   = AppState.services.findIndex(function(s) { return s.id === serviceId; });
+    if (idx !== -1) AppState.services.splice(idx, 1, computeRuleService(rule, curMi));
+
+    AppState.services.sort(function(a, b) {
+      var order = { overdue: 0, warning: 1, ok: 2 };
+      return (order[a.status] || 2) - (order[b.status] || 2);
+    });
+
+    recomputeVehicleHealth();
+    renderServices();
+    renderStats();
+    renderVehicleCards();
+    showToast('Rule updated.', 'success');
+    return true;
+  } catch (err) {
+    showToast('Error updating rule: ' + err.message, 'error');
+    return false;
+  }
+}
+
 /* ── Edit Maintenance Modal ── */
 function openEditMaintenanceModal(maintenanceId) {
   var m = AppState.maintenanceLog.find(function(x) { return x.id === maintenanceId; });
@@ -1281,11 +1476,26 @@ function confirmDeleteMaintenance(maintenanceId) {
 
 /* ── Add Fuel Modal ── */
 function openAddFuelModal() {
+  if (AppState.vehicles.length === 0) {
+    showToast('Add a vehicle first before logging fuel.', 'info');
+    return;
+  }
   var activeId = AppState.activeVehicleId;
   var opts = AppState.vehicles.map(function(v) {
     var sel = (v.id === activeId) ? ' selected' : '';
     return '<option value="' + v.id + '"' + sel + '>' + v.year + ' ' + v.make + ' ' + v.model + '</option>';
   }).join('');
+
+  function lastFuelOdometer(vehicleId) {
+    var entries = AppState.fuelLog.filter(function(f) { return f.vehicleId === vehicleId; });
+    if (entries.length === 0) {
+      var v = getVehicle(vehicleId);
+      return v ? v.odometer : 0;
+    }
+    return Math.max.apply(null, entries.map(function(f) { return f.odometer; }));
+  }
+
+  var initialOdometer = activeId ? lastFuelOdometer(activeId) : '';
 
   var modal = createModal('Log Fuel Fill-up',
     '<div class="modal-form">' +
@@ -1295,16 +1505,18 @@ function openAddFuelModal() {
         '<div class="form-group"><label class="form-label" for="ffDate">Date</label>' +
           '<input id="ffDate" class="form-control" type="date" value="' + new Date().toISOString().slice(0, 10) + '" /></div>' +
         '<div class="form-group"><label class="form-label" for="ffOdometer">Odometer (mi)</label>' +
-          '<input id="ffOdometer" class="form-control" type="number" placeholder="e.g. 84500" min="0" /></div>' +
+          '<input id="ffOdometer" class="form-control" type="number" value="' + initialOdometer + '" placeholder="e.g. 84500" min="0" step="10" /></div>' +
       '</div>' +
       '<div class="form-row">' +
         '<div class="form-group"><label class="form-label" for="ffGallons">Gallons</label>' +
-          '<input id="ffGallons" class="form-control" type="number" placeholder="e.g. 10.5" min="0.1" step="0.1" /></div>' +
+          '<input id="ffGallons" class="form-control" type="number" placeholder="e.g. 10" min="1" step="1" /></div>' +
         '<div class="form-group"><label class="form-label" for="ffCost">Total Cost ($)</label>' +
-          '<input id="ffCost" class="form-control" type="number" placeholder="0.00" min="0" step="0.01" /></div>' +
+          '<input id="ffCost" class="form-control" type="number" placeholder="0.00" min="0" step="1" /></div>' +
       '</div>' +
-      '<div class="form-group"><label class="form-label" for="ffStation">Station / Location</label>' +
-        '<input id="ffStation" class="form-control" type="text" placeholder="e.g. Shell on Main St" /></div>' +
+      '<div class="form-group" style="position:relative;"><label class="form-label" for="ffStation">Station / Location</label>' +
+        '<input id="ffStation" class="form-control" type="text" placeholder="e.g. Shell on Main St" autocomplete="off" />' +
+        '<div id="ffStationDropdown" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 2px);background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:100;max-height:160px;overflow-y:auto;"></div>' +
+      '</div>' +
       '<div id="mpgPreview" class="mpg-preview" style="display:none;">' +
         '<span class="mpg-preview-label">Calculated MPG</span>' +
         '<span class="mpg-preview-val" id="mpgPreviewVal">—</span>' +
@@ -1314,16 +1526,22 @@ function openAddFuelModal() {
      { label: 'Cancel',       cls: 'btn-secondary', action: 'cancel' }]
   );
 
+  function prefillOdometer() {
+    var vehicleId = qs('#ffVehicle') ? qs('#ffVehicle').value : '';
+    var odomEl = qs('#ffOdometer');
+    if (odomEl) odomEl.value = lastFuelOdometer(vehicleId) || '';
+  }
+
   function calcMpg() {
-    var vehicleId  = qs('#ffVehicle')  ? qs('#ffVehicle').value  : '';
+    var vehicleId  = qs('#ffVehicle') ? qs('#ffVehicle').value : '';
     var odometer   = parseFloat(qs('#ffOdometer') ? qs('#ffOdometer').value : '');
     var gallons    = parseFloat(qs('#ffGallons')  ? qs('#ffGallons').value  : '');
     var preview    = qs('#mpgPreview');
     var previewVal = qs('#mpgPreviewVal');
     if (!preview || !previewVal) return;
-    var v = getVehicle(vehicleId);
-    if (v && !isNaN(odometer) && !isNaN(gallons) && gallons > 0 && odometer > v.odometer) {
-      var mpg = ((odometer - v.odometer) / gallons).toFixed(1);
+    var prev = lastFuelOdometer(vehicleId);
+    if (prev > 0 && !isNaN(odometer) && !isNaN(gallons) && gallons > 0 && odometer > prev) {
+      var mpg = ((odometer - prev) / gallons).toFixed(1);
       previewVal.textContent = mpg + ' MPG';
       previewVal.style.color = mpgColor(parseFloat(mpg));
       preview.style.display  = 'flex';
@@ -1332,10 +1550,47 @@ function openAddFuelModal() {
     }
   }
 
-  ['#ffVehicle', '#ffOdometer', '#ffGallons'].forEach(function(sel) {
+  var vehicleEl = qs('#ffVehicle', modal);
+  if (vehicleEl) vehicleEl.addEventListener('change', function() { prefillOdometer(); calcMpg(); });
+
+  ['#ffOdometer', '#ffGallons'].forEach(function(sel) {
     var el = qs(sel, modal);
     if (el) el.addEventListener('input', calcMpg);
   });
+
+  var stationInput    = qs('#ffStation', modal);
+  var stationDropdown = qs('#ffStationDropdown', modal);
+  var savedStations   = JSON.parse(localStorage.getItem('fuelStations') || '[]');
+
+  function showStationSuggestions(filter) {
+    var matches = filter
+      ? savedStations.filter(function(s) { return s.toLowerCase().indexOf(filter.toLowerCase()) !== -1; })
+      : savedStations;
+    if (matches.length === 0) { stationDropdown.style.display = 'none'; return; }
+    stationDropdown.innerHTML = matches.map(function(s) {
+      return '<div class="station-suggestion" style="padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text);border-bottom:1px solid var(--border);">' + s + '</div>';
+    }).join('');
+    stationDropdown.style.display = '';
+    qsa('.station-suggestion', stationDropdown).forEach(function(item) {
+      item.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        stationInput.value = item.textContent;
+        stationDropdown.style.display = 'none';
+      });
+    });
+  }
+
+  if (stationInput && stationDropdown) {
+    stationInput.addEventListener('focus', function() {
+      if (savedStations.length > 0) showStationSuggestions(stationInput.value);
+    });
+    stationInput.addEventListener('input', function() {
+      showStationSuggestions(stationInput.value);
+    });
+    stationInput.addEventListener('blur', function() {
+      setTimeout(function() { stationDropdown.style.display = 'none'; }, 150);
+    });
+  }
 
   qsa('[data-modal-action]', modal).forEach(function(btn) {
     btn.addEventListener('click', async function() {
@@ -1359,7 +1614,7 @@ async function submitAddFuel() {
   var cost      = parseFloat(val('ffCost'));
   var station   = val('ffStation') || 'Unknown';
 
-  if (!vehicleId || !date || isNaN(odometer) || isNaN(gallons) || isNaN(cost)) {
+  if (!vehicleId || !date || isNaN(odometer) || isNaN(gallons) || gallons <= 0 || isNaN(cost)) {
     showToast('Please fill in all required fields.', 'error');
     return false;
   }
@@ -1367,10 +1622,19 @@ async function submitAddFuel() {
   var numericVehicleId = parseInt(vehicleId.slice(1));
   var pricePerGallon   = gallons > 0 ? parseFloat((cost / gallons).toFixed(4)) : 0;
 
-  var v            = getVehicle(vehicleId);
-  var prevOdometer = v ? v.odometer : odometer;
-  var miles        = odometer - prevOdometer;
-  var mpg          = miles > 0 && gallons > 0 ? parseFloat((miles / gallons).toFixed(1)) : 0;
+  var v                = getVehicle(vehicleId);
+  var existingEntries  = AppState.fuelLog.filter(function(f) { return f.vehicleId === vehicleId; });
+  var prevOdometer     = existingEntries.length > 0
+    ? Math.max.apply(null, existingEntries.map(function(f) { return f.odometer; }))
+    : (v ? v.odometer : 0);
+
+  if (prevOdometer > 0 && odometer < prevOdometer) {
+    showToast('Odometer (' + odometer.toLocaleString() + ' mi) is lower than the last recorded reading (' + prevOdometer.toLocaleString() + ' mi). Please verify.', 'error');
+    return false;
+  }
+
+  var miles = odometer - prevOdometer;
+  var mpg   = miles > 0 && gallons > 0 ? parseFloat((miles / gallons).toFixed(1)) : 0;
 
   try {
     var result = await DataModel.addFuel({
@@ -1383,11 +1647,14 @@ async function submitAddFuel() {
       gallons, cost, mpg, odometer,
     });
 
-    if (v && odometer > v.odometer) {
-      v.odometer = odometer;
-      if (mpg > 0) v.avgMpg = parseFloat(((v.avgMpg + mpg) / 2).toFixed(1));
-    }
+    if (v && odometer > v.odometer) v.odometer = odometer;
+    computeFuelMpg();
 
+    if (station && station !== 'Unknown') {
+      var stations = JSON.parse(localStorage.getItem('fuelStations') || '[]');
+      stations = [station].concat(stations.filter(function(s) { return s !== station; })).slice(0, 10);
+      localStorage.setItem('fuelStations', JSON.stringify(stations));
+    }
     renderFuelLog();
     renderVehicleCards();
     renderSidebarVehicles();
@@ -1399,6 +1666,135 @@ async function submitAddFuel() {
     showToast('Error saving fuel entry: ' + err.message, 'error');
     return false;
   }
+}
+
+
+/* ── Edit Fuel Modal ── */
+function openEditFuelModal(fuelId) {
+  var f = AppState.fuelLog.find(function(x) { return x.id === fuelId; });
+  if (!f) return;
+
+  var modal = createModal('Edit Fuel Entry',
+    '<div class="modal-form">' +
+      '<div class="form-group"><label class="form-label">Vehicle</label>' +
+        '<div class="form-control" style="opacity:0.6;cursor:default;">' + vehicleLabel(f.vehicleId) + '</div></div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="efDate">Date</label>' +
+          '<input id="efDate" class="form-control" type="date" value="' + f.date + '" /></div>' +
+        '<div class="form-group"><label class="form-label" for="efOdometer">Odometer (mi)</label>' +
+          '<input id="efOdometer" class="form-control" type="number" value="' + f.odometer + '" min="0" /></div>' +
+      '</div>' +
+      '<div class="form-row">' +
+        '<div class="form-group"><label class="form-label" for="efGallons">Gallons</label>' +
+          '<input id="efGallons" class="form-control" type="number" value="' + f.gallons + '" min="0.1" step="0.1" /></div>' +
+        '<div class="form-group"><label class="form-label" for="efCost">Total Cost ($)</label>' +
+          '<input id="efCost" class="form-control" type="number" value="' + f.cost.toFixed(2) + '" min="0" step="0.01" /></div>' +
+      '</div>' +
+      '<div class="form-group"><label class="form-label" for="efStation">Station / Location</label>' +
+        '<input id="efStation" class="form-control" type="text" value="' + (f.station || '') + '" /></div>' +
+    '</div>',
+    [{ label: 'Save Changes', cls: 'btn-primary',  action: 'save'   },
+     { label: 'Cancel',       cls: 'btn-secondary', action: 'cancel' }]
+  );
+
+  qsa('[data-modal-action]', modal).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (btn.dataset.modalAction === 'save') {
+        btn.disabled = true;
+        if (await submitEditFuel(fuelId)) closeModal();
+        else btn.disabled = false;
+      } else {
+        closeModal();
+      }
+    });
+  });
+}
+
+async function submitEditFuel(fuelId) {
+  function val(id) { var el = qs('#' + id); return el ? el.value.trim() : ''; }
+  var date     = val('efDate');
+  var odometer = parseFloat(val('efOdometer'));
+  var gallons  = parseFloat(val('efGallons'));
+  var cost     = parseFloat(val('efCost'));
+  var station  = val('efStation') || '';
+
+  if (!date || isNaN(odometer) || isNaN(gallons) || gallons <= 0 || isNaN(cost)) {
+    showToast('Please fill in all required fields.', 'error');
+    return false;
+  }
+
+  var numericId      = parseInt(fuelId.slice(1));
+  var pricePerGallon = parseFloat((cost / gallons).toFixed(4));
+
+  try {
+    await DataModel.updateFuel(numericId, {
+      date, gallons, price_per_gallon: pricePerGallon, mileage: odometer, station,
+    });
+
+    var f = AppState.fuelLog.find(function(x) { return x.id === fuelId; });
+    f.date     = date;
+    f.odometer = odometer;
+    f.gallons  = gallons;
+    f.cost     = cost;
+    f.station  = station;
+
+    var vehicleFuelEntries = AppState.fuelLog.filter(function(ff) { return ff.vehicleId === f.vehicleId; });
+    var maxOdometer = vehicleFuelEntries.length > 0
+      ? Math.max.apply(null, vehicleFuelEntries.map(function(ff) { return ff.odometer; })) : 0;
+    var fv = getVehicle(f.vehicleId);
+    if (fv && maxOdometer > 0) fv.odometer = maxOdometer;
+
+    computeFuelMpg();
+    renderFuelLog();
+    renderVehicleCards();
+    renderStats();
+    if (_currentView === 'fuel') updateFuelSummary();
+    showToast('Fuel entry updated.', 'success');
+    return true;
+  } catch (err) {
+    showToast('Error updating fuel entry: ' + err.message, 'error');
+    return false;
+  }
+}
+
+/* ── Delete Fuel Confirmation ── */
+function confirmDeleteFuel(fuelId) {
+  var f = AppState.fuelLog.find(function(x) { return x.id === fuelId; });
+  if (!f) return;
+
+  var modal = createModal('Delete Fuel Entry',
+    '<p style="margin:0;line-height:1.5;">Are you sure you want to delete the fuel entry from <strong>' +
+    formatDate(f.date) + '</strong> for ' + vehicleLabel(f.vehicleId) + '? This cannot be undone.</p>',
+    [{ label: 'Delete',  cls: 'btn-danger',    action: 'delete' },
+     { label: 'Cancel',  cls: 'btn-secondary', action: 'cancel' }]
+  );
+
+  qsa('[data-modal-action]', modal).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      if (btn.dataset.modalAction === 'delete') {
+        btn.disabled = true;
+        var numericId = parseInt(fuelId.slice(1));
+        try {
+          await DataModel.deleteFuel(numericId);
+
+          AppState.fuelLog = AppState.fuelLog.filter(function(x) { return x.id !== fuelId; });
+
+          computeFuelMpg();
+          renderFuelLog();
+          renderVehicleCards();
+          renderStats();
+          if (_currentView === 'fuel') updateFuelSummary();
+          closeModal();
+          showToast('Fuel entry deleted.', 'success');
+        } catch (err) {
+          showToast('Error deleting fuel entry: ' + err.message, 'error');
+          btn.disabled = false;
+        }
+      } else {
+        closeModal();
+      }
+    });
+  });
 }
 
 
@@ -1560,8 +1956,21 @@ async function submitEditVehicle(vehicleId) {
     v.type     = type;
     v.odometer = mileage;
 
+    // Recompute rule services for this vehicle with updated mileage
+    AppState.services = AppState.services.map(function(s) {
+      if (!s.isRule || s.vehicleId !== vehicleId) return s;
+      var rule = AppState.rules.find(function(r) { return r.id === s.ruleId; });
+      return rule ? computeRuleService(rule, mileage) : s;
+    });
+    AppState.services.sort(function(a, b) {
+      var order = { overdue: 0, warning: 1, ok: 2 };
+      return (order[a.status] || 2) - (order[b.status] || 2);
+    });
+
+    recomputeVehicleHealth();
     renderSidebarVehicles();
     renderVehicleCards();
+    renderServices();
     renderStats();
     showToast(year + ' ' + make + ' ' + model + ' updated!', 'success');
     return true;
@@ -1579,7 +1988,7 @@ function confirmDeleteVehicle(vehicleId) {
   var label = v.year + ' ' + v.make + ' ' + v.model;
   var modal = createModal('Delete Vehicle',
     '<p style="margin:0;line-height:1.5;">Are you sure you want to delete the <strong>' + label + '</strong>? ' +
-    'This will also remove all associated maintenance records, fuel logs, and service reminders.</p>',
+    'This will permanently remove all associated maintenance records, fuel logs, service reminders, and maintenance rules. This cannot be undone.</p>',
     [{ label: 'Delete',  cls: 'btn-danger',    action: 'delete' },
      { label: 'Cancel',  cls: 'btn-secondary', action: 'cancel' }]
   );
