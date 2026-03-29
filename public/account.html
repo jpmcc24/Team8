@@ -24,6 +24,30 @@
       <span id="userEmail">—</span>
     </div>
 
+    <div style="margin-top:40px;padding-top:24px;border-top:1px solid var(--red);">
+      <h3 style="font-family:var(--font-head);color:var(--red);letter-spacing:0.05em;margin-bottom:8px;">DANGER ZONE</h3>
+      <p style="color:var(--text-dim);font-size:14px;margin-bottom:16px;">Permanently delete your account and all associated data. This cannot be undone.</p>
+      <button id="deleteAccountButton" class="btn-danger" style="padding:8px 20px;font-family:var(--font-head);font-size:15px;letter-spacing:0.05em;">DELETE ACCOUNT</button>
+    </div>
+
+  </div>
+
+  <!-- Delete Account Confirmation Modal -->
+  <div id="deleteAccountModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);">
+    <div style="background:var(--surface);border:1px solid var(--border-bright);border-radius:var(--radius-lg);width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+        <span style="font-family:var(--font-head);font-size:18px;font-weight:700;letter-spacing:0.05em;color:var(--red);">DELETE ACCOUNT</span>
+        <button id="deleteModalClose" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);line-height:1;">&times;</button>
+      </div>
+      <div style="padding:20px;">
+        <p style="color:var(--text);margin-bottom:8px;">Are you sure you want to delete your account?</p>
+        <p style="color:var(--text-dim);font-size:14px;">This will permanently remove all your vehicles, maintenance records, fuel logs, and reminders. <strong>This action cannot be undone.</strong></p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;padding:16px 20px;border-top:1px solid var(--border);">
+        <button id="deleteAccountCancel" style="padding:8px 18px;background:var(--surface-2);color:var(--text);border:1px solid var(--border-bright);border-radius:var(--radius);cursor:pointer;font-family:var(--font-head);font-size:14px;letter-spacing:0.05em;">CANCEL</button>
+        <button id="deleteAccountConfirm" class="btn-danger" style="padding:8px 18px;font-family:var(--font-head);font-size:14px;letter-spacing:0.05em;">YES, DELETE ACCOUNT</button>
+      </div>
+    </div>
   </div>
 
   <script src="/js/datamodel.js"></script>

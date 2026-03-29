@@ -2198,6 +2198,38 @@ function switchView(viewName) {
     if (avEl)    avEl.textContent    = AppState.currentUser.initials || '?';
     if (vcEl)    vcEl.textContent    = AppState.vehicles.length;
     if (scEl)    scEl.textContent    = AppState.maintenanceLog.length;
+
+    var deleteBtn = qs('#deleteAccountButton');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', function() {
+        var modal = createModal('Delete Account',
+          '<p style="margin:0;line-height:1.5;">Are you sure you want to delete your account? ' +
+          'This will permanently remove all your vehicles, maintenance records, fuel logs, and reminders. ' +
+          '<strong>This cannot be undone.</strong></p>',
+          [{ label: 'Delete Account', cls: 'btn-danger',    action: 'delete' },
+           { label: 'Cancel',         cls: 'btn-secondary', action: 'cancel' }]
+        );
+        qsa('[data-modal-action]', modal).forEach(function(btn) {
+          btn.addEventListener('click', async function() {
+            if (btn.dataset.modalAction === 'delete') {
+              btn.disabled = true;
+              btn.textContent = 'Deleting...';
+              try {
+                await DataModel.deleteAccount();
+                localStorage.removeItem('jwtToken');
+                window.location.href = '/';
+              } catch (err) {
+                showToast('Error deleting account: ' + err.message, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Delete Account';
+              }
+            } else {
+              closeModal();
+            }
+          });
+        });
+      });
+    }
   }
 
   qsa('.nav-item[data-view]').forEach(function(l) {

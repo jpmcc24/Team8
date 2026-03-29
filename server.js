@@ -665,6 +665,39 @@ app.delete('/api/rules/:id', authenticateToken, async (req, res) => {
 });
 
 //////////////////////////////////////
+// ACCOUNT ROUTES
+//////////////////////////////////////
+// Route: Delete Account
+app.delete('/api/account', authenticateToken, async (req, res) => {
+    const email = req.user.email;
+    try {
+        const connection = await createConnection();
+        await connection.execute(
+            `DELETE ml FROM maintenance_log ml JOIN vehicles v ON ml.vehicle_id = v.id WHERE v.user_email = ?`,
+            [email]
+        );
+        await connection.execute(
+            `DELETE fl FROM fuel_log fl JOIN vehicles v ON fl.vehicle_id = v.id WHERE v.user_email = ?`,
+            [email]
+        );
+        await connection.execute(
+            `DELETE r FROM reminders r JOIN vehicles v ON r.vehicle_id = v.id WHERE v.user_email = ?`,
+            [email]
+        );
+        await connection.execute(
+            `DELETE mr FROM maintenance_rules mr JOIN vehicles v ON mr.vehicle_id = v.id WHERE v.user_email = ?`,
+            [email]
+        );
+        await connection.execute('DELETE FROM vehicles WHERE user_email = ?', [email]);
+        await connection.execute('DELETE FROM user WHERE email = ?', [email]);
+        await connection.end();
+        res.status(200).json({ message: 'Account deleted.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error deleting account.' });
+    }
+});
+//////////////////////////////////////
 //END ROUTES TO HANDLE API REQUESTS
 //////////////////////////////////////
 

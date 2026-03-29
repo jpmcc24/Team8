@@ -138,5 +138,12 @@ const DataModel = (function () {
         deleteRule: async function (id) {
             return request('DELETE', '/api/rules/' + id);
         },
+
+        //////////////////////////////
+        // ACCOUNT
+        //////////////////////////////
+        deleteAccount: async function () {
+            return request('DELETE', '/api/account');
+        },
     };
 })();
