@@ -440,7 +440,7 @@ body {
 /* ── Content Grid ── */
 .content-grid {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: 320px 1fr;
   gap: 16px;
   margin-bottom: 16px;
 }
