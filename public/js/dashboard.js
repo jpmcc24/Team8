@@ -977,8 +977,13 @@ function openAddServiceModal() {
   var vehicleSelect = qs('#fsVehicle', modal);
 
   function prefillMileage(vid) {
-    var v = vid ? getVehicle(vid) : null;
-    if (mileageInput) mileageInput.value = (v && v.odometer > 0) ? v.odometer : '';
+    if (!mileageInput || !vid) return;
+    var v = getVehicle(vid);
+    var candidates = [v ? v.odometer : 0];
+    AppState.maintenanceLog.forEach(function(m) { if (m.vehicleId === vid) candidates.push(m.mileage); });
+    AppState.fuelLog.forEach(function(f) { if (f.vehicleId === vid) candidates.push(f.odometer); });
+    var latest = Math.max.apply(null, candidates.filter(function(x) { return x > 0; }));
+    mileageInput.value = latest > 0 ? latest : '';
   }
 
   if (vehicleSelect) {
@@ -1495,7 +1500,7 @@ function openAddFuelModal() {
     return Math.max.apply(null, entries.map(function(f) { return f.odometer; }));
   }
 
-  var initialOdometer = activeId ? lastFuelOdometer(activeId) : '';
+  var initialOdometer = activeId ? latestOdometer(activeId) : '';
 
   var modal = createModal('Log Fuel Fill-up',
     '<div class="modal-form">' +
@@ -1526,10 +1531,19 @@ function openAddFuelModal() {
      { label: 'Cancel',       cls: 'btn-secondary', action: 'cancel' }]
   );
 
+  function latestOdometer(vehicleId) {
+    var v = getVehicle(vehicleId);
+    var candidates = [v ? v.odometer : 0];
+    AppState.maintenanceLog.forEach(function(m) { if (m.vehicleId === vehicleId) candidates.push(m.mileage); });
+    AppState.fuelLog.forEach(function(f) { if (f.vehicleId === vehicleId) candidates.push(f.odometer); });
+    var latest = Math.max.apply(null, candidates.filter(function(x) { return x > 0; }));
+    return latest > 0 ? latest : 0;
+  }
+
   function prefillOdometer() {
     var vehicleId = qs('#ffVehicle') ? qs('#ffVehicle').value : '';
     var odomEl = qs('#ffOdometer');
-    if (odomEl) odomEl.value = lastFuelOdometer(vehicleId) || '';
+    if (odomEl) odomEl.value = latestOdometer(vehicleId) || '';
   }
 
   function calcMpg() {
