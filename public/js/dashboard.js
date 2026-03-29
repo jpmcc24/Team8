@@ -1167,6 +1167,13 @@ async function submitAddRule() {
   var lastDate    = val('arLastDate')    || null;
   var lastMileage = parseInt(val('arLastMileage')) || null;
 
+  // Pin due-mileage to the current odometer at rule creation time so that
+  // later odometer edits don't shift the reminder forward.
+  if (intervalMiles && lastMileage == null) {
+    var pinVehicle = getVehicle(vehicleId);
+    if (pinVehicle && pinVehicle.odometer > 0) lastMileage = pinVehicle.odometer;
+  }
+
   if (!vehicleId || !serviceType) {
     showToast('Please select a vehicle and enter a service type.', 'error');
     return false;
