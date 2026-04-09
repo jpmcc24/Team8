@@ -181,6 +181,143 @@ app.get('/api/users', authenticateToken, async (req, res) => {
     }
 });
 
+// Route: Get current profile
+app.get('/api/profile', authenticateToken, async (req, res) => {
+    try {
+        const connection = await createConnection();
+        const [rows] = await connection.execute(
+            'SELECT email FROM user WHERE email = ?',
+            [req.user.email]
+        );
+        await connection.end();
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+        res.status(200).json({ email: rows[0].email });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error retrieving profile.' });
+    }
+});
+
+// Route: Update email address
+app.put('/api/account/email', authenticateToken, async (req, res) => {
+    const { newEmail, currentPassword } = req.body;
+
+    if (!newEmail || !currentPassword) {
+        return res.status(400).json({ message: 'New email and current password are required.' });
+    }
+
+    if (newEmail === req.user.email) {
+        return res.status(400).json({ message: 'Enter a different email address.' });
+    }
+
+    let connection;
+    try {
+        connection = await createConnection();
+        await connection.beginTransaction();
+
+        const [userRows] = await connection.execute(
+            'SELECT password FROM user WHERE email = ?',
+            [req.user.email]
+        );
+
+        if (userRows.length === 0) {
+            await connection.rollback();
+            await connection.end();
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const passwordMatch = await bcrypt.compare(currentPassword, userRows[0].password);
+        if (!passwordMatch) {
+            await connection.rollback();
+            await connection.end();
+            return res.status(401).json({ message: 'Current password is incorrect.' });
+        }
+
+        const [existingRows] = await connection.execute(
+            'SELECT email FROM user WHERE email = ?',
+            [newEmail]
+        );
+        if (existingRows.length > 0) {
+            await connection.rollback();
+            await connection.end();
+            return res.status(409).json({ message: 'An account with that email already exists.' });
+        }
+
+        await connection.execute('SET FOREIGN_KEY_CHECKS = 0');
+        await connection.execute(
+            'UPDATE vehicles SET user_email = ? WHERE user_email = ?',
+            [newEmail, req.user.email]
+        );
+        await connection.execute(
+            'UPDATE user SET email = ? WHERE email = ?',
+            [newEmail, req.user.email]
+        );
+        await connection.execute('SET FOREIGN_KEY_CHECKS = 1');
+
+        await connection.commit();
+        await connection.end();
+
+        const token = jwt.sign(
+            { email: newEmail },
+            process.env.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        res.status(200).json({ message: 'Email updated successfully.', token });
+    } catch (error) {
+        console.error(error);
+        try {
+            if (connection) await connection.rollback();
+        } catch (rollbackError) {
+            console.error('Error rolling back transaction:', rollbackError);
+        }
+        if (connection) await connection.end();
+        res.status(500).json({ message: 'Error updating email address.' });
+    }
+});
+
+// Route: Update password
+app.put('/api/account/password', authenticateToken, async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: 'Current password and new password are required.' });
+    }
+
+    try {
+        const connection = await createConnection();
+        const [rows] = await connection.execute(
+            'SELECT password FROM user WHERE email = ?',
+            [req.user.email]
+        );
+
+        if (rows.length === 0) {
+            await connection.end();
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        const passwordMatch = await bcrypt.compare(currentPassword, rows[0].password);
+        if (!passwordMatch) {
+            await connection.end();
+            return res.status(401).json({ message: 'Current password is incorrect.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await connection.execute(
+            'UPDATE user SET password = ? WHERE email = ?',
+            [hashedPassword, req.user.email]
+        );
+        await connection.end();
+
+        res.status(200).json({ message: 'Password updated successfully.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error updating password.' });
+    }
+});
+
 
 //////////////////////////////////////
 // VEHICLE ROUTES

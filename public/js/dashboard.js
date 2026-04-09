@@ -2153,6 +2153,7 @@ var VIEW_CONFIG = {
 
 var _panelOrigins = {};
 var _currentView  = 'dashboard';
+var _profileControlsInitialized = false;
 
 function switchView(viewName) {
   var config = VIEW_CONFIG[viewName];
@@ -2221,7 +2222,8 @@ function switchView(viewName) {
     if (scEl)    scEl.textContent    = AppState.maintenanceLog.length;
 
     var deleteBtn = qs('#deleteAccountButton');
-    if (deleteBtn) {
+    if (deleteBtn && !deleteBtn.dataset.deleteListenerAdded) {
+      deleteBtn.dataset.deleteListenerAdded = '1';
       deleteBtn.addEventListener('click', function() {
         var modal = createModal('Delete Account',
           '<p style="margin:0;line-height:1.5;">Are you sure you want to delete your account? ' +
@@ -2251,6 +2253,8 @@ function switchView(viewName) {
         });
       });
     }
+
+    initProfileControls();
   }
 
   qsa('.nav-item[data-view]').forEach(function(l) {
@@ -2330,7 +2334,144 @@ function initNav() {
 
 
 /* ══════════════════════════════════════════
-   FUEL SUMMARY
+   PROFILE CONTROLS
+══════════════════════════════════════════ */
+function initProfileControls() {
+  if (_profileControlsInitialized) return;
+  _profileControlsInitialized = true;
+
+  var editEmailButton = qs('#editEmailButton');
+  var changePasswordButton = qs('#changePasswordButton');
+
+  if (editEmailButton) {
+    editEmailButton.addEventListener('click', function() {
+      var currentEmail = AppState.currentUser.email || '';
+      var modalBody = 
+        '<div class="form-group">' +
+          '<label class="form-label">New email address</label>' +
+          '<input id="modalEmailInput" class="form-control" type="email" placeholder="you@example.com" value="' + currentEmail + '" />' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Current password</label>' +
+          '<input id="modalEmailPassword" class="form-control" type="password" placeholder="Current password" />' +
+        '</div>' +
+        '<div id="modalEmailStatus" style="font-size:13px;color:var(--text-muted);margin-top:8px;"></div>';
+      
+      var modal = createModal('Edit Email Address', modalBody, [
+        { label: 'Save', cls: 'btn-primary', action: 'save' },
+        { label: 'Cancel', cls: 'btn-secondary', action: 'cancel' }
+      ]);
+
+      qsa('[data-modal-action]', modal).forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (btn.dataset.modalAction === 'save') {
+            var newEmail = qs('#modalEmailInput').value.trim();
+            var currentPassword = qs('#modalEmailPassword').value;
+            var statusEl = qs('#modalEmailStatus');
+            
+            if (!newEmail || !currentPassword) {
+              statusEl.style.color = 'var(--red)';
+              statusEl.textContent = 'Email and password are required.';
+              return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            try {
+              var result = await DataModel.updateEmail(newEmail, currentPassword);
+              if (result && result.token) {
+                localStorage.setItem('jwtToken', result.token);
+                DataModel.setToken(result.token);
+                AppState.currentUser.email = newEmail;
+                AppState.currentUser.initials = newEmail[0].toUpperCase();
+                var avatar = qs('#userAvatar');
+                if (avatar) { avatar.textContent = AppState.currentUser.initials; avatar.title = newEmail; }
+                var emailEl = qs('#profileEmail');
+                if (emailEl) emailEl.textContent = newEmail;
+              }
+              showToast('Email updated successfully!', 'success');
+              closeModal();
+            } catch (err) {
+              console.error('Error updating email:', err);
+              statusEl.style.color = 'var(--red)';
+              statusEl.textContent = err.message || 'Failed to update email.';
+              btn.disabled = false;
+              btn.textContent = 'Save';
+            }
+          } else {
+            closeModal();
+          }
+        });
+      });
+    });
+  }
+
+  if (changePasswordButton) {
+    changePasswordButton.addEventListener('click', function() {
+      var modalBody = 
+        '<div class="form-group">' +
+          '<label class="form-label">Current password</label>' +
+          '<input id="modalCurrentPassword" class="form-control" type="password" placeholder="Current password" />' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">New password</label>' +
+          '<input id="modalNewPassword" class="form-control" type="password" placeholder="New password" />' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Confirm new password</label>' +
+          '<input id="modalConfirmPassword" class="form-control" type="password" placeholder="Confirm new password" />' +
+        '</div>' +
+        '<div id="modalPasswordStatus" style="font-size:13px;color:var(--text-muted);margin-top:8px;"></div>';
+      
+      var modal = createModal('Change Password', modalBody, [
+        { label: 'Update Password', cls: 'btn-primary', action: 'save' },
+        { label: 'Cancel', cls: 'btn-secondary', action: 'cancel' }
+      ]);
+
+      qsa('[data-modal-action]', modal).forEach(function(btn) {
+        btn.addEventListener('click', async function() {
+          if (btn.dataset.modalAction === 'save') {
+            var currentPassword = qs('#modalCurrentPassword').value;
+            var newPassword = qs('#modalNewPassword').value;
+            var confirmPassword = qs('#modalConfirmPassword').value;
+            var statusEl = qs('#modalPasswordStatus');
+            
+            if (!currentPassword || !newPassword || !confirmPassword) {
+              statusEl.style.color = 'var(--red)';
+              statusEl.textContent = 'All password fields are required.';
+              return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+              statusEl.style.color = 'var(--red)';
+              statusEl.textContent = 'New passwords do not match.';
+              return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Updating...';
+            try {
+              await DataModel.updatePassword(currentPassword, newPassword);
+              showToast('Password updated successfully!', 'success');
+              closeModal();
+            } catch (err) {
+              console.error('Error changing password:', err);
+              statusEl.style.color = 'var(--red)';
+              statusEl.textContent = err.message || 'Failed to change password.';
+              btn.disabled = false;
+              btn.textContent = 'Update Password';
+            }
+          } else {
+            closeModal();
+          }
+        });
+      });
+    });
+  }
+}
+
+/* ══════════════════════════════════════════
+  FUEL SUMMARY
 ══════════════════════════════════════════ */
 function updateFuelSummary() {
   var container = qs('#fuelSummary');
