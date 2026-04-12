@@ -240,7 +240,7 @@ function computeFuelMpg() {
 
     for (var i = 1; i < entries.length; i++) {
       var miles = entries[i].odometer - entries[i - 1].odometer;
-      if (miles > 0 && entries[i].gallons > 0) {
+      if (miles > 0 && entries[i].gallons > 0 && entries[i - 1].odometer > 0) {
         entries[i].mpg = parseFloat((miles / entries[i].gallons).toFixed(1));
       }
     }
@@ -277,6 +277,151 @@ function computeMonthlySpend() {
     var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
     AppState.monthlySpend.push({ month: names[d.getMonth()], amount: Math.round(byMonth[key] || 0) });
   }
+}
+
+
+/* ══════════════════════════════════════════
+   ANALYTICS COMPUTATIONS
+══════════════════════════════════════════ */
+var _analyticsGradCounter = 0;
+
+function categorizeService(serviceType) {
+  var s = (serviceType || '').toLowerCase();
+  if (/oil|filter|rotation|inspection|wiper|fluid|coolant|alignment|tune|spark|cabin/.test(s)) return 'routine';
+  if (/tire|tyre|brake|battery/.test(s)) return 'wear';
+  return 'repair';
+}
+
+function computeCostPerMile() {
+  var today = new Date();
+  var names = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  var months = [];
+  var i, j, key;
+  for (i = 11; i >= 0; i--) {
+    var d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    months.push({ key: key, label: names[d.getMonth()], miles: 0, fuelCost: 0, maintCost: 0 });
+  }
+
+  var byVehicle = {};
+  AppState.fuelLog.forEach(function(f) {
+    if (!byVehicle[f.vehicleId]) byVehicle[f.vehicleId] = [];
+    byVehicle[f.vehicleId].push(f);
+  });
+  Object.keys(byVehicle).forEach(function(vid) {
+    var entries = byVehicle[vid].sort(function(a, b) { return a.odometer - b.odometer; });
+    for (i = 1; i < entries.length; i++) {
+      var delta = entries[i].odometer - entries[i - 1].odometer;
+      if (delta <= 0 || delta > 5000) continue;
+      key = String(entries[i].date).slice(0, 7);
+      for (j = 0; j < months.length; j++) {
+        if (months[j].key === key) { months[j].miles += delta; break; }
+      }
+    }
+  });
+
+  AppState.fuelLog.forEach(function(f) {
+    key = String(f.date).slice(0, 7);
+    for (j = 0; j < months.length; j++) {
+      if (months[j].key === key) { months[j].fuelCost += f.cost; break; }
+    }
+  });
+  AppState.maintenanceLog.forEach(function(m) {
+    key = String(m.date).slice(0, 7);
+    for (j = 0; j < months.length; j++) {
+      if (months[j].key === key) { months[j].maintCost += m.cost; break; }
+    }
+  });
+
+  return months.map(function(m) {
+    var total = m.fuelCost + m.maintCost;
+    return {
+      key: m.key, label: m.label,
+      miles: m.miles, fuelCost: m.fuelCost, maintCost: m.maintCost, total: total,
+      cpm: m.miles > 50 ? total / m.miles : 0,
+    };
+  });
+}
+
+function computeSpendingDNA() {
+  var today = new Date();
+  var names = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  var months = [], i, j, key;
+  for (i = 5; i >= 0; i--) {
+    var d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    months.push({ key: key, label: names[d.getMonth()], fuel: 0, routine: 0, wear: 0, repair: 0 });
+  }
+  AppState.fuelLog.forEach(function(f) {
+    key = String(f.date).slice(0, 7);
+    for (j = 0; j < months.length; j++) {
+      if (months[j].key === key) { months[j].fuel += f.cost; break; }
+    }
+  });
+  AppState.maintenanceLog.forEach(function(m) {
+    key = String(m.date).slice(0, 7);
+    var cat = categorizeService(m.service);
+    for (j = 0; j < months.length; j++) {
+      if (months[j].key === key) { months[j][cat] += m.cost; break; }
+    }
+  });
+  return months;
+}
+
+function computeFuelIntelligence() {
+  return AppState.fuelLog
+    .filter(function(f) { return f.mpg > 0; })
+    .sort(function(a, b) { return a.date < b.date ? -1 : 1; })
+    .map(function(f) {
+      var ppg = f.gallons > 0 ? f.cost / f.gallons : 0;
+      return { date: f.date, mpg: f.mpg, ppg: ppg, c100: ppg > 0 && f.mpg > 0 ? (ppg / f.mpg) * 100 : 0 };
+    });
+}
+
+function computeFleetScorecard() {
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 90);
+  var cutoffStr = cutoff.toISOString().slice(0, 10);
+  return AppState.vehicles.map(function(v) {
+    var maint90 = AppState.maintenanceLog
+      .filter(function(m) { return m.vehicleId === v.id && m.date >= cutoffStr; })
+      .reduce(function(s, m) { return s + m.cost; }, 0);
+    var fuel90 = AppState.fuelLog
+      .filter(function(f) { return f.vehicleId === v.id && f.date >= cutoffStr; })
+      .reduce(function(s, f) { return s + f.cost; }, 0);
+
+    var allEntries = AppState.fuelLog
+      .filter(function(f) { return f.vehicleId === v.id; })
+      .sort(function(a, b) { return a.odometer - b.odometer; });
+    var inWindow = allEntries.filter(function(f) { return f.date >= cutoffStr; });
+    var miles90 = 0;
+    if (inWindow.length >= 1) {
+      var startOdo = inWindow[0].odometer;
+      for (var k = allEntries.length - 1; k >= 0; k--) {
+        if (allEntries[k].date < cutoffStr) { startOdo = allEntries[k].odometer; break; }
+      }
+      miles90 = Math.max(0, inWindow[inWindow.length - 1].odometer - startOdo);
+    }
+
+    var recentMpg = AppState.fuelLog
+      .filter(function(f) { return f.vehicleId === v.id && f.mpg > 0; })
+      .sort(function(a, b) { return a.date < b.date ? 1 : -1; })
+      .slice(0, 6);
+    var mpgTrend = 'flat';
+    if (recentMpg.length >= 4) {
+      var newAvg = (recentMpg[0].mpg + recentMpg[1].mpg) / 2;
+      var oldAvg = (recentMpg[recentMpg.length - 2].mpg + recentMpg[recentMpg.length - 1].mpg) / 2;
+      if (newAvg > oldAvg * 1.04) mpgTrend = 'up';
+      else if (newAvg < oldAvg * 0.96) mpgTrend = 'down';
+    }
+    var total90 = maint90 + fuel90;
+    return {
+      vehicle: v, total90: total90, miles90: miles90,
+      cpm90: miles90 > 50 ? total90 / miles90 : 0,
+      mpgTrend: mpgTrend,
+      nextSvc: AppState.services.filter(function(s) { return s.vehicleId === v.id; })[0] || null,
+    };
+  });
 }
 
 
@@ -544,6 +689,386 @@ function renderCostChart() {
   var ytdEl = qs('#ytdTotal');
   if (ytdEl) ytdEl.textContent = '$' + ytd.toLocaleString();
 }
+
+/* ══════════════════════════════════════════
+   ANALYTICS RENDERING
+══════════════════════════════════════════ */
+function buildSvgPath(values, W, H, color) {
+  var pad = 10;
+  var validVals = values.filter(function(v) { return v > 0; });
+  if (validVals.length < 2) {
+    return '<text x="' + Math.round(W / 2) + '" y="' + Math.round(H / 2 + 4) + '" ' +
+      'text-anchor="middle" fill="var(--text-muted)" font-size="11" ' +
+      'font-family="JetBrains Mono,monospace">Not enough data yet</text>';
+  }
+  var minV = Math.min.apply(null, validVals) * 0.92;
+  var maxV = Math.max.apply(null, validVals) * 1.08;
+  var vRange = maxV - minV || 1;
+  var n = values.length;
+  var xStep = n > 1 ? (W - pad * 2) / (n - 1) : 0;
+
+  var coords = values.map(function(v, i) {
+    return {
+      x: pad + i * xStep,
+      y: v > 0 ? (H - pad) - ((v - minV) / vRange) * (H - pad * 2) : null,
+    };
+  });
+
+  var d = '', prevNull = true;
+  coords.forEach(function(c) {
+    if (c.y !== null) {
+      d += (prevNull ? 'M' : 'L') + c.x.toFixed(1) + ' ' + c.y.toFixed(1) + ' ';
+      prevNull = false;
+    } else { prevNull = true; }
+  });
+
+  var first = coords.find(function(c) { return c.y !== null; });
+  var last  = coords.slice().reverse().find(function(c) { return c.y !== null; });
+  var areaD = d + 'L' + last.x.toFixed(1) + ' ' + (H - pad) + ' L' + first.x.toFixed(1) + ' ' + (H - pad) + ' Z';
+  var gid   = 'ag' + (++_analyticsGradCounter);
+
+  return '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.22"/>' +
+    '<stop offset="100%" stop-color="' + color + '" stop-opacity="0"/>' +
+    '</linearGradient></defs>' +
+    '<path d="' + areaD + '" fill="url(#' + gid + ')"/>' +
+    '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<circle cx="' + last.x.toFixed(1) + '" cy="' + last.y.toFixed(1) + '" r="4" fill="' + color + '"/>';
+}
+
+function statCell(val, key) {
+  return '<div class="analytics-stat">' +
+    '<div class="analytics-stat-val">' + val + '</div>' +
+    '<div class="analytics-stat-key">' + key + '</div>' +
+  '</div>';
+}
+
+function renderCostPerMileSection(data) {
+  var W = 560, H = 100;
+  var cpmVals   = data.map(function(d) { return d.cpm; });
+  var validData = data.filter(function(d) { return d.cpm > 0; });
+  var avgCpm    = validData.length > 0
+    ? validData.reduce(function(s, d) { return s + d.cpm; }, 0) / validData.length : 0;
+  var totalMiles = data.reduce(function(s, d) { return s + d.miles; }, 0);
+  var totalCost  = data.reduce(function(s, d) { return s + d.total; }, 0);
+  var fuelTotal  = data.reduce(function(s, d) { return s + d.fuelCost; }, 0);
+  var fuelPct    = totalCost > 0 ? Math.round(fuelTotal / totalCost * 100) : 0;
+
+  var recent3 = validData.slice(-3), older3 = validData.slice(-6, -3);
+  var trendHTML = '—';
+  if (recent3.length >= 2 && older3.length >= 2) {
+    var rAvg = recent3.reduce(function(s, d) { return s + d.cpm; }, 0) / recent3.length;
+    var oAvg = older3.reduce(function(s, d) { return s + d.cpm; }, 0) / older3.length;
+    var pct  = (rAvg - oAvg) / oAvg * 100;
+    var col  = pct <= 0 ? 'var(--green)' : 'var(--red)';
+    trendHTML = '<span style="color:' + col + '">' + (pct >= 0 ? '+' : '') + pct.toFixed(1) + '% vs prior</span>';
+  }
+
+  var pad = 10, xStep = data.length > 1 ? (W - pad * 2) / (data.length - 1) : 0;
+  var svgInner = buildSvgPath(cpmVals, W, H, 'var(--accent)');
+
+  if (validData.length >= 2) {
+    var validVals2 = cpmVals.filter(function(v) { return v > 0; });
+    var minV2 = Math.min.apply(null, validVals2) * 0.92;
+    var maxV2 = Math.max.apply(null, validVals2) * 1.08;
+    var vRange2 = maxV2 - minV2 || 1;
+    data.forEach(function(d, i) {
+      if (d.maintCost > 30 && d.cpm > 0) {
+        var cx = (pad + i * xStep).toFixed(1);
+        var cy = ((H - pad) - ((d.cpm - minV2) / vRange2) * (H - pad * 2)).toFixed(1);
+        var r  = Math.min(9, Math.max(3, Math.sqrt(d.maintCost / 15))).toFixed(1);
+        svgInner += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r +
+          '" fill="var(--red)" opacity="0.55" />';
+      }
+    });
+  }
+
+  var xAxis = data.map(function(d, i) {
+    if (i % 2 !== 0) return '';
+    return '<text x="' + (pad + i * xStep).toFixed(1) + '" y="' + (H + 15) + '" ' +
+      'text-anchor="middle" fill="var(--text-muted)" font-size="9" ' +
+      'font-family="JetBrains Mono,monospace">' + d.label + '</text>';
+  }).join('');
+
+  var chartDisplay = validData.length < 2 ? 'none' : 'block';
+  var noDataMsg = validData.length < 2
+    ? '<div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);padding:8px 0 4px;">Log fuel entries with odometer readings to track cost-per-mile over time.</div>'
+    : '';
+
+  return '<div class="analytics-card">' +
+    '<div class="analytics-card-header">' +
+      '<span class="analytics-card-title"><i class="fa-solid fa-chart-line" style="margin-right:6px;font-size:12px;"></i>True Operating Cost</span>' +
+      '<span class="analytics-card-badge">COST / MILE · 12 MO</span>' +
+    '</div>' +
+    '<div class="analytics-card-body">' +
+      '<div class="analytics-stat-row">' +
+        statCell(avgCpm > 0 ? '$' + avgCpm.toFixed(2) : '—', 'AVG COST/MI') +
+        statCell(totalMiles > 0 ? totalMiles.toLocaleString() + ' mi' : '—', 'MILES TRACKED') +
+        statCell(fuelPct + '%', 'FUEL SHARE') +
+        statCell(trendHTML, '3-MO TREND') +
+      '</div>' +
+      '<div class="analytics-chart-wrap">' +
+        noDataMsg +
+        '<svg viewBox="0 0 ' + W + ' ' + (H + 20) + '" preserveAspectRatio="none" ' +
+          'style="width:100%;height:130px;display:' + chartDisplay + ';">' +
+          svgInner + xAxis +
+        '</svg>' +
+      '</div>' +
+      '<div class="analytics-chart-legend">' +
+        '<span><span class="legend-dot" style="background:var(--accent);"></span>Cost / mile</span>' +
+        '<span><span class="legend-dot" style="background:var(--red);opacity:.55;"></span>Maintenance event (size = cost)</span>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderSpendingDNASection(data) {
+  var categories = [
+    { key: 'fuel',    label: 'Fuel',    color: 'var(--accent)' },
+    { key: 'routine', label: 'Routine', color: 'var(--blue)'   },
+    { key: 'wear',    label: 'Wear',    color: '#a07848'        },
+    { key: 'repair',  label: 'Repairs', color: 'var(--red)'    },
+  ];
+  var maxTotal = 0;
+  data.forEach(function(d) {
+    var t = d.fuel + d.routine + d.wear + d.repair;
+    if (t > maxTotal) maxTotal = t;
+  });
+  if (maxTotal === 0) maxTotal = 1;
+
+  var ytd = {};
+  categories.forEach(function(c) { ytd[c.key] = 0; });
+  data.forEach(function(d) { categories.forEach(function(c) { ytd[c.key] += d[c.key]; }); });
+  var ytdGrand = categories.reduce(function(s, c) { return s + ytd[c.key]; }, 0);
+
+  var barsHTML = data.map(function(d) {
+    var total = d.fuel + d.routine + d.wear + d.repair;
+    var hPct  = (total / maxTotal * 100).toFixed(1);
+    var segs  = categories.map(function(c) {
+      return d[c.key] > 0
+        ? '<div style="flex:' + d[c.key].toFixed(2) + ';background:' + c.color + ';" ' +
+            'title="' + c.label + ': $' + d[c.key].toFixed(0) + '"></div>'
+        : '';
+    }).join('');
+    return '<div class="dna-bar-col">' +
+      '<div class="dna-bar-track">' +
+        '<div class="dna-bar-fill" style="height:' + hPct + '%;">' + segs + '</div>' +
+      '</div>' +
+      '<div class="dna-bar-label">' + d.label + '</div>' +
+      '<div class="dna-bar-total">' + (total > 0 ? '$' + Math.round(total) : '—') + '</div>' +
+    '</div>';
+  }).join('');
+
+  var legendHTML = categories.map(function(c) {
+    var pct = ytdGrand > 0 ? Math.round(ytd[c.key] / ytdGrand * 100) : 0;
+    return '<div class="dna-legend-item">' +
+      '<div class="dna-legend-dot" style="background:' + c.color + ';"></div>' +
+      '<div>' +
+        '<div class="dna-legend-val">' + (ytd[c.key] > 0 ? '$' + Math.round(ytd[c.key]) : '—') + '</div>' +
+        '<div class="dna-legend-key">' + c.label.toUpperCase() + ' · ' + pct + '%</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="analytics-card">' +
+    '<div class="analytics-card-header">' +
+      '<span class="analytics-card-title"><i class="fa-solid fa-layer-group" style="margin-right:6px;font-size:12px;"></i>Spending DNA</span>' +
+      '<span class="analytics-card-badge">6-MONTH BREAKDOWN</span>' +
+    '</div>' +
+    '<div class="analytics-card-body">' +
+      '<div class="dna-chart">' +
+        '<div class="dna-bars">' + barsHTML + '</div>' +
+        '<div class="dna-legend">' + legendHTML + '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderFuelIntelSection(data) {
+  if (data.length < 3) {
+    return '<div class="analytics-card">' +
+      '<div class="analytics-card-header">' +
+        '<span class="analytics-card-title"><i class="fa-solid fa-gas-pump" style="margin-right:6px;font-size:12px;"></i>Fuel Intelligence</span>' +
+        '<span class="analytics-card-badge">EFFICIENCY ANALYSIS</span>' +
+      '</div>' +
+      '<div class="analytics-card-body">' +
+        '<div class="empty-state" style="padding:30px 0;">Log at least 3 fill-ups with odometer readings to unlock fuel intelligence.</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  var W = 160, H = 54;
+  var latest = data[data.length - 1];
+  var prev   = data.length >= 4 ? data[data.length - 4] : data[0];
+
+  function trendArrow(cur, old, lowerIsBetter) {
+    if (!old) return '';
+    var pct = (cur - old) / Math.abs(old);
+    if (Math.abs(pct) < 0.02) return '<span style="color:var(--text-muted)">→ flat</span>';
+    var isUp   = pct > 0;
+    var isGood = lowerIsBetter ? !isUp : isUp;
+    return '<span style="color:' + (isGood ? 'var(--green)' : 'var(--red)') + '">' +
+      (isUp ? '▲' : '▼') + ' ' + (Math.abs(pct) * 100).toFixed(1) + '%</span>';
+  }
+
+  function sparkCard(label, values, curVal, trendHTML, color, fmt) {
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" ' +
+      'style="width:100%;height:' + H + 'px;">' +
+      buildSvgPath(values, W, H, color) + '</svg>';
+    return '<div class="spark-card">' +
+      '<div class="spark-label">' + label + '</div>' +
+      '<div class="spark-val" style="color:' + color + '">' + fmt(curVal) + '</div>' +
+      '<div class="spark-trend">' + trendHTML + '</div>' +
+      '<div class="spark-chart">' + svg + '</div>' +
+    '</div>';
+  }
+
+  var mpgVals  = data.map(function(d) { return d.mpg; });
+  var ppgVals  = data.map(function(d) { return d.ppg; });
+  var c100Vals = data.map(function(d) { return d.c100; });
+
+  var insight = '';
+  if (data.length >= 6) {
+    var half   = Math.floor(data.length / 2);
+    var mpgNew = mpgVals.slice(-half).reduce(function(s, v) { return s + v; }, 0) / half;
+    var mpgOld = mpgVals.slice(0, half).reduce(function(s, v) { return s + v; }, 0) / half;
+    var ppgNew = ppgVals.slice(-half).reduce(function(s, v) { return s + v; }, 0) / half;
+    var ppgOld = ppgVals.slice(0, half).reduce(function(s, v) { return s + v; }, 0) / half;
+    var mpgUp  = mpgNew > mpgOld * 1.03, ppgUp = ppgNew > ppgOld * 1.03;
+    if      (!mpgUp &&  ppgUp) insight = 'Heads up — efficiency is down and fuel prices are up. Cost per 100 mi is increasing.';
+    else if ( mpgUp && !ppgUp) insight = 'Great — efficiency is up and prices are down. Your fuel cost per 100 mi is improving.';
+    else if (!mpgUp)           insight = 'Efficiency trending down. A tune-up or tire pressure check may help.';
+    else if ( ppgUp)           insight = 'Fuel prices are climbing. Your improved efficiency is helping offset the increase.';
+  }
+
+  return '<div class="analytics-card">' +
+    '<div class="analytics-card-header">' +
+      '<span class="analytics-card-title"><i class="fa-solid fa-gas-pump" style="margin-right:6px;font-size:12px;"></i>Fuel Intelligence</span>' +
+      '<span class="analytics-card-badge">EFFICIENCY ANALYSIS</span>' +
+    '</div>' +
+    '<div class="analytics-card-body">' +
+      '<div class="spark-row">' +
+        sparkCard('AVG MPG', mpgVals, latest.mpg,
+          trendArrow(latest.mpg, prev.mpg, false), 'var(--accent)',
+          function(v) { return v.toFixed(1); }) +
+        sparkCard('PRICE / GAL', ppgVals, latest.ppg,
+          trendArrow(latest.ppg, prev.ppg, true), 'var(--blue)',
+          function(v) { return '$' + v.toFixed(3); }) +
+        sparkCard('COST / 100MI', c100Vals, latest.c100,
+          trendArrow(latest.c100, prev.c100, true), 'var(--red)',
+          function(v) { return '$' + v.toFixed(2); }) +
+      '</div>' +
+      (insight ? '<div class="analytics-insight"><i class="fa-solid fa-circle-info" style="margin-right:6px;"></i>' + insight + '</div>' : '') +
+    '</div>' +
+  '</div>';
+}
+
+function renderFleetScorecardSection(scorecard) {
+  if (scorecard.length === 0) {
+    return '<div class="analytics-card">' +
+      '<div class="analytics-card-header">' +
+        '<span class="analytics-card-title"><i class="fa-solid fa-shield-halved" style="margin-right:6px;font-size:12px;"></i>Fleet Health Scorecard</span>' +
+      '</div>' +
+      '<div class="analytics-card-body"><div class="empty-state">No vehicles registered.</div></div>' +
+    '</div>';
+  }
+
+  var worstIdx = -1, worstCpm = 0;
+  scorecard.forEach(function(s, i) {
+    if (s.cpm90 > worstCpm) { worstCpm = s.cpm90; worstIdx = i; }
+  });
+
+  var cardsHTML = scorecard.map(function(s, i) {
+    var v = s.vehicle;
+    var isWorst   = scorecard.length > 1 && i === worstIdx && s.cpm90 > 0;
+    var mpgArrow  = { up: '▲', down: '▼', flat: '→' }[s.mpgTrend] || '→';
+    var mpgAColor = { up: 'var(--green)', down: 'var(--red)', flat: 'var(--text-muted)' }[s.mpgTrend];
+
+    var nextHTML;
+    if (s.nextSvc) {
+      var sc      = s.nextSvc.status;
+      var scColor = sc === 'overdue' ? 'var(--red)' : sc === 'warning' ? 'var(--accent)' : 'var(--text-muted)';
+      var scLabel = sc === 'overdue' ? 'OVERDUE' : s.nextSvc.dueDate ? formatDate(s.nextSvc.dueDate) : 'Due soon';
+      nextHTML = '<span style="font-size:12px;">' + s.nextSvc.name + '</span><br>' +
+        '<span style="font-family:var(--font-mono);font-size:9px;color:' + scColor + ';">' + scLabel + '</span>';
+    } else {
+      nextHTML = '<span style="color:var(--green);">All clear</span>';
+    }
+
+    return '<div class="scorecard-card' + (isWorst ? ' scorecard-worst' : '') + '">' +
+      '<div class="scorecard-vehicle-header" style="border-left:3px solid ' + v.color + ';">' +
+        '<div>' +
+          '<div class="scorecard-name">' + v.year + ' ' + v.make + ' ' + v.model + '</div>' +
+          '<span class="vehicle-health ' + healthClass(v.health) + '" style="font-size:9px;padding:2px 5px;">' +
+            v.health.toUpperCase() + '</span>' +
+        '</div>' +
+        (isWorst ? '<span class="scorecard-flag">HIGHEST COST/MI</span>' : '') +
+      '</div>' +
+      '<div class="scorecard-metrics">' +
+        '<div class="scorecard-metric">' +
+          '<div class="scorecard-metric-val">' + (s.total90 > 0 ? '$' + Math.round(s.total90) : '—') + '</div>' +
+          '<div class="scorecard-metric-key">90-DAY SPEND</div>' +
+        '</div>' +
+        '<div class="scorecard-metric">' +
+          '<div class="scorecard-metric-val">' + (s.cpm90 > 0 ? '$' + s.cpm90.toFixed(2) : '—') + '</div>' +
+          '<div class="scorecard-metric-key">COST / MI</div>' +
+        '</div>' +
+        '<div class="scorecard-metric">' +
+          '<div class="scorecard-metric-val">' +
+            (v.avgMpg > 0
+              ? '<span style="color:' + mpgColor(v.avgMpg) + '">' + v.avgMpg + '</span>' +
+                ' <small style="color:' + mpgAColor + ';font-size:10px;">' + mpgArrow + '</small>'
+              : '—') +
+          '</div>' +
+          '<div class="scorecard-metric-key">AVG MPG</div>' +
+        '</div>' +
+        '<div class="scorecard-metric">' +
+          '<div class="scorecard-metric-val">' + nextHTML + '</div>' +
+          '<div class="scorecard-metric-key">NEXT SERVICE</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="analytics-card">' +
+    '<div class="analytics-card-header">' +
+      '<span class="analytics-card-title"><i class="fa-solid fa-shield-halved" style="margin-right:6px;font-size:12px;"></i>Fleet Health Scorecard</span>' +
+      '<span class="analytics-card-badge">90-DAY COMPARISON</span>' +
+    '</div>' +
+    '<div class="analytics-card-body">' +
+      '<div class="scorecard-list">' + cardsHTML + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderAnalytics() {
+  var panel = qs('#panelAnalytics');
+  if (!panel) return;
+
+  var cpmData   = computeCostPerMile();
+  var dnaData   = computeSpendingDNA();
+  var fuelIntel = computeFuelIntelligence();
+  var scorecard = computeFleetScorecard();
+  var today     = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  panel.className = 'panel';
+  panel.innerHTML =
+    '<div class="panel-header">' +
+      '<div class="panel-title"><span class="dot"></span> Performance Dashboard</div>' +
+      '<div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">Updated ' + today + '</div>' +
+    '</div>' +
+    '<div class="analytics-body">' +
+      '<div class="analytics-grid">' +
+        renderCostPerMileSection(cpmData) +
+        renderSpendingDNASection(dnaData) +
+      '</div>' +
+      '<div class="analytics-grid" style="margin-top:16px;">' +
+        renderFuelIntelSection(fuelIntel) +
+        renderFleetScorecardSection(scorecard) +
+      '</div>' +
+    '</div>';
+}
+
 
 function renderFuelLog() {
   var container = qs('#fuelList');
@@ -1500,10 +2025,7 @@ function openAddFuelModal() {
 
   function lastFuelOdometer(vehicleId) {
     var entries = AppState.fuelLog.filter(function(f) { return f.vehicleId === vehicleId; });
-    if (entries.length === 0) {
-      var v = getVehicle(vehicleId);
-      return v ? v.odometer : 0;
-    }
+    if (entries.length === 0) return 0; // first fill-up — no valid previous reading, skip MPG
     return Math.max.apply(null, entries.map(function(f) { return f.odometer; }));
   }
 
@@ -1540,11 +2062,16 @@ function openAddFuelModal() {
 
   function latestOdometer(vehicleId) {
     var v = getVehicle(vehicleId);
-    var candidates = [v ? v.odometer : 0];
-    AppState.maintenanceLog.forEach(function(m) { if (m.vehicleId === vehicleId) candidates.push(m.mileage); });
-    AppState.fuelLog.forEach(function(f) { if (f.vehicleId === vehicleId) candidates.push(f.odometer); });
-    var latest = Math.max.apply(null, candidates.filter(function(x) { return x > 0; }));
-    return latest > 0 ? latest : 0;
+    // Collect odometers from actual logged entries
+    var logCandidates = [];
+    AppState.maintenanceLog.forEach(function(m) { if (m.vehicleId === vehicleId && m.mileage > 0) logCandidates.push(m.mileage); });
+    AppState.fuelLog.forEach(function(f) { if (f.vehicleId === vehicleId && f.odometer > 0) logCandidates.push(f.odometer); });
+    // Only fall back to v.odometer (DB current_mileage) when there are no logged entries.
+    // v.odometer is never decremented server-side, so it becomes stale after entries are deleted.
+    if (logCandidates.length > 0) {
+      return Math.max.apply(null, logCandidates);
+    }
+    return (v && v.odometer > 0) ? v.odometer : 0;
   }
 
   function prefillOdometer() {
@@ -1645,16 +2172,18 @@ async function submitAddFuel() {
 
   var v                = getVehicle(vehicleId);
   var existingEntries  = AppState.fuelLog.filter(function(f) { return f.vehicleId === vehicleId; });
+  // Only use logged entry odometers as the floor — never v.odometer, since it's
+  // never reset when entries are deleted and would block historical backdating.
   var prevOdometer     = existingEntries.length > 0
     ? Math.max.apply(null, existingEntries.map(function(f) { return f.odometer; }))
-    : (v ? v.odometer : 0);
+    : 0;
 
   if (prevOdometer > 0 && odometer < prevOdometer) {
     showToast('Odometer (' + odometer.toLocaleString() + ' mi) is lower than the last recorded reading (' + prevOdometer.toLocaleString() + ' mi). Please verify.', 'error');
     return false;
   }
 
-  var miles = odometer - prevOdometer;
+  var miles = prevOdometer > 0 ? odometer - prevOdometer : 0;
   var mpg   = miles > 0 && gallons > 0 ? parseFloat((miles / gallons).toFixed(1)) : 0;
 
   try {
@@ -2141,8 +2670,8 @@ var VIEW_CONFIG = {
   },
   analytics:   {
     title:    'Cost <span>Analytics</span>',
-    subtitle: function() { return 'MONTHLY SPENDING BREAKDOWN'; },
-    panel: 'panelCostChart',
+    subtitle: function() { return 'PERFORMANCE INSIGHTS'; },
+    panel: 'panelAnalytics',
   },
   profile:     {
     title:    'My <span>Profile</span>',
@@ -2173,7 +2702,7 @@ function switchView(viewName) {
   });
   _panelOrigins = {};
 
-  var allSections = ['sectionStats', 'sectionRow1', 'sectionRow2', 'panelMaintenance', 'panelProfile'];
+  var allSections = ['sectionStats', 'sectionRow1', 'sectionRow2', 'panelMaintenance', 'panelProfile', 'panelAnalytics'];
   allSections.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
@@ -2284,6 +2813,8 @@ function switchView(viewName) {
     if (viewName === 'fuel') { updateFuelSummary(); }
     else                     { fuelSummary.style.display = 'none'; }
   }
+
+  if (viewName === 'analytics') renderAnalytics();
 
   _currentView = viewName;
 }
@@ -2569,8 +3100,12 @@ function handleExport() {
     showToast('Service schedule exported.', 'success');
 
   } else if (_currentView === 'analytics') {
-    rows = [['Month', 'Spend ($)']];
-    AppState.monthlySpend.forEach(function(m) { rows.push([m.month, m.amount]); });
+    var cpmExport = computeCostPerMile();
+    rows = [['Month', 'Miles Driven', 'Fuel Cost ($)', 'Maintenance Cost ($)', 'Total Cost ($)', 'Cost Per Mile ($)']];
+    cpmExport.forEach(function(m) {
+      rows.push([m.label, m.miles, m.fuelCost.toFixed(2), m.maintCost.toFixed(2),
+        m.total.toFixed(2), m.cpm > 0 ? m.cpm.toFixed(3) : '']);
+    });
     downloadCSV(rows, 'cost_analytics_' + today + '.csv');
     showToast('Cost analytics exported.', 'success');
 
