@@ -237,7 +237,7 @@
         <div style="display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;align-items:center;gap:16px;padding:8px 0;border-bottom:1px solid var(--border);">
             <div id="profileAvatar" style="width:52px;height:52px;border-radius:var(--radius-lg);background:var(--accent);color:#000;display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:22px;font-weight:800;flex-shrink:0;">ML</div>
-            <div>
+            <div style="flex:1;">
               <div style="font-family:var(--font-head);font-size:18px;font-weight:700;letter-spacing:.04em;color:var(--text);" id="profileEmail">—</div>
               <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:2px;">Registered account</div>
             </div>
@@ -246,6 +246,15 @@
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.1em;">VEHICLES</div><div id="profileVehicleCount" style="font-family:var(--font-head);font-size:28px;font-weight:800;color:var(--accent);">—</div></div>
             <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.1em;">SERVICES LOGGED</div><div id="profileServiceCount" style="font-family:var(--font-head);font-size:28px;font-weight:800;color:var(--accent);">—</div></div>
           </div>
+
+          <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.1em;margin-bottom:12px;">ACCOUNT SECURITY</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button id="editEmailButton" class="btn btn-primary" type="button" style="flex:1;min-width:140px;">Edit Email</button>
+              <button id="changePasswordButton" class="btn btn-primary" type="button" style="flex:1;min-width:140px;">Change Password</button>
+            </div>
+          </div>
+
           <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--red);">
             <div style="font-family:var(--font-mono);font-size:10px;color:var(--red);letter-spacing:.1em;margin-bottom:8px;">DANGER ZONE</div>
             <p style="font-size:13px;color:var(--text-dim);margin-bottom:12px;">Permanently delete your account and all associated data. This cannot be undone.</p>

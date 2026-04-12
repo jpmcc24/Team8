@@ -142,6 +142,15 @@ const DataModel = (function () {
         //////////////////////////////
         // ACCOUNT
         //////////////////////////////
+        getCurrentUser: async function () {
+            return request('GET', '/api/profile');
+        },
+        updateEmail: async function (newEmail, currentPassword) {
+            return request('PUT', '/api/account/email', { newEmail, currentPassword });
+        },
+        updatePassword: async function (currentPassword, newPassword) {
+            return request('PUT', '/api/account/password', { currentPassword, newPassword });
+        },
         deleteAccount: async function () {
             return request('DELETE', '/api/account');
         },
