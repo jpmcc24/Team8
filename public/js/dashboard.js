@@ -42,6 +42,40 @@ const getVehicle   = id  => AppState.vehicles.find(function(v){ return v.id === 
 const vehicleLabel = id  => { var v = getVehicle(id); return v ? (v.year + ' ' + v.make + ' ' + v.model) : '—'; };
 const mpgColor     = mpg => mpg >= 30 ? 'var(--green)' : mpg >= 22 ? 'var(--accent)' : 'var(--red)';
 const healthClass  = h   => ({ good: 'health-good', fair: 'health-fair', poor: 'health-poor' }[h] || 'health-good');
+const THEME_STORAGE_KEY = 'dashboardTheme';
+
+function applyTheme(theme) {
+  var body = document.body;
+  if (!body) return;
+  if (theme === 'dark') {
+    body.classList.add('dark-mode');
+  } else {
+    body.classList.remove('dark-mode');
+  }
+  var toggle = qs('#themeToggleButton');
+  if (toggle) {
+    var icon = theme === 'dark' ? 'fa-moon' : 'fa-sun';
+    toggle.innerHTML = '<span class="theme-toggle-icon"><i class="fa-solid ' + icon + '"></i></span>' +
+                       '<span class="theme-button-label">' + (theme === 'dark' ? 'Dark Mode' : 'Light Mode') + '</span>';
+  }
+}
+
+function initThemeToggle() {
+  var saved = localStorage.getItem(THEME_STORAGE_KEY);
+  var theme = saved === 'dark' ? 'dark' : saved === 'light' ? 'light' :
+    (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+  applyTheme(theme);
+  var toggle = qs('#themeToggleButton');
+  if (!toggle) return;
+
+  toggle.addEventListener('click', function() {
+    var nextTheme = document.body.classList.contains('dark-mode') ? 'light' : 'dark';
+    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    applyTheme(nextTheme);
+    showToast(nextTheme === 'dark' ? 'Dark mode enabled.' : 'Light mode enabled.', 'info');
+  });
+}
 
 function vehicleTypeIcon(type) {
   var icons = {
@@ -2610,6 +2644,55 @@ function dismissToast(toast) {
   setTimeout(function() { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 220);
 }
 
+function matchQuery(query, terms) {
+  return terms.some(function(term) {
+    return query.indexOf(term) !== -1;
+  });
+}
+
+function findSearchView(query) {
+  var sections = [
+    { view: 'maintenance', terms: ['maintenance', 'service', 'log', 'history', 'records', 'repairs'] },
+    { view: 'vehicles',    terms: ['vehicle', 'vehicles', 'car', 'cars', 'my vehicles'] },
+    { view: 'schedule',    terms: ['schedule', 'upcoming', 'due', 'services'] },
+    { view: 'fuel',        terms: ['fuel', 'gas', 'gasoline', 'tank', 'fill-up', 'fill ups'] },
+    { view: 'analytics',   terms: ['analytics', 'cost', 'spend', 'money', 'budget'] },
+    { view: 'profile',     terms: ['profile', 'account', 'settings', 'security', 'appearance'] },
+    { view: 'dashboard',   terms: ['dashboard', 'home', 'overview', 'fleet'] }
+  ];
+
+  for (var i = 0; i < sections.length; i++) {
+    if (matchQuery(query, sections[i].terms)) {
+      return sections[i].view;
+    }
+  }
+
+  if (AppState.vehicles.some(function(v) {
+    return (v.make + ' ' + v.model + ' ' + v.type).toLowerCase().indexOf(query) !== -1;
+  })) {
+    return 'vehicles';
+  }
+
+  if (AppState.maintenanceLog.some(function(m) {
+    return (m.service + ' ' + m.location + ' ' + m.notes).toLowerCase().indexOf(query) !== -1;
+  })) {
+    return 'maintenance';
+  }
+
+  if (AppState.services.some(function(s) {
+    return (s.name + ' ' + s.dueDate + ' ' + s.status).toLowerCase().indexOf(query) !== -1;
+  })) {
+    return 'schedule';
+  }
+
+  if (AppState.fuelLog.some(function(f) {
+    return (f.station + ' ' + f.date).toLowerCase().indexOf(query) !== -1;
+  })) {
+    return 'fuel';
+  }
+
+  return null;
+}
 
 /* ══════════════════════════════════════════
    SEARCH
@@ -2617,16 +2700,36 @@ function dismissToast(toast) {
 function initSearch() {
   var input = qs('#topbarSearchInput');
   if (!input) return;
+
+  function resetTableFilter() {
+    qsa('#maintenanceTbody tr').forEach(function(row) { row.style.opacity = '1'; });
+  }
+
   input.addEventListener('input', function() {
     var q = input.value.toLowerCase().trim();
     qsa('#maintenanceTbody tr').forEach(function(row) {
       row.style.opacity = (!q || row.textContent.toLowerCase().indexOf(q) !== -1) ? '1' : '0.25';
     });
   });
+
   input.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       input.value = '';
-      qsa('#maintenanceTbody tr').forEach(function(row) { row.style.opacity = '1'; });
+      resetTableFilter();
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      var q = input.value.toLowerCase().trim();
+      if (!q) return;
+
+      var view = findSearchView(q);
+      if (view) {
+        switchView(view);
+        showToast('Navigated to ' + view + '.', 'info');
+      } else {
+        showToast('No matching section found. Try maintenance, vehicles, fuel, analytics, or profile.', 'error');
+      }
     }
   });
 }
@@ -2848,6 +2951,37 @@ function initNav() {
       e.preventDefault();
       localStorage.removeItem('jwtToken');
       window.location.href = '/';
+    });
+  }
+
+  var settingsBtn = qs('#settingsBtn');
+  var settingsMenu = qs('#settingsMenu');
+  if (settingsBtn && settingsMenu) {
+    settingsBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      settingsMenu.classList.toggle('menu-visible');
+      settingsBtn.setAttribute('aria-expanded', settingsMenu.classList.contains('menu-visible'));
+    });
+
+    settingsMenu.addEventListener('click', function(e) {
+      var item = e.target.closest('[data-view], [data-action]');
+      if (!item) return;
+      e.preventDefault();
+      settingsMenu.classList.remove('menu-visible');
+      settingsBtn.setAttribute('aria-expanded', 'false');
+      if (item.dataset.view === 'profile') {
+        switchView('profile');
+      } else if (item.dataset.action === 'logout') {
+        localStorage.removeItem('jwtToken');
+        window.location.href = '/';
+      }
+    });
+
+    document.addEventListener('click', function(e) {
+      if (!settingsMenu.contains(e.target) && !settingsBtn.contains(e.target)) {
+        settingsMenu.classList.remove('menu-visible');
+        settingsBtn.setAttribute('aria-expanded', 'false');
+      }
     });
   }
 
@@ -3210,6 +3344,7 @@ function init() {
   initSearch();
   initNav();
   initButtons();
+  initThemeToggle();
 
   loadData()
     .then(function() {

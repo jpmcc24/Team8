@@ -36,9 +36,21 @@
         <i class="fa-regular fa-bell"></i>
         <span class="badge"></span>
       </button>
-      <button class="btn-icon" title="Settings">
-        <i class="fa-solid fa-gear"></i>
-      </button>
+      <div class="topbar-settings">
+        <button id="settingsBtn" class="btn-icon" title="Settings" aria-haspopup="true" aria-expanded="false">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+        <div id="settingsMenu" class="topbar-menu" role="menu" aria-label="Settings menu">
+          <button class="topbar-menu-item" type="button" data-view="profile">
+            <span class="menu-icon"><i class="fa-solid fa-user"></i></span>
+            Profile
+          </button>
+          <button class="topbar-menu-item" type="button" data-action="logout">
+            <span class="menu-icon"><i class="fa-solid fa-right-from-bracket"></i></span>
+            Log Out
+          </button>
+        </div>
+      </div>
       <div id="userAvatar" class="user-avatar" title="">ML</div>
     </div>
   </header>
@@ -253,8 +265,26 @@
           <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
             <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.1em;margin-bottom:12px;">ACCOUNT SECURITY</div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button id="editEmailButton" class="btn btn-primary" type="button" style="flex:1;min-width:140px;">Edit Email</button>
-              <button id="changePasswordButton" class="btn btn-primary" type="button" style="flex:1;min-width:140px;">Change Password</button>
+              <button id="editEmailButton" class="btn btn-secondary theme-toggle-btn" type="button" style="flex:1;min-width:140px;">
+                <span class="theme-toggle-icon"><i class="fa-solid fa-envelope"></i></span>
+                <span>Edit Email</span>
+              </button>
+              <button id="changePasswordButton" class="btn btn-secondary theme-toggle-btn" type="button" style="flex:1;min-width:140px;">
+                <span class="theme-toggle-icon"><i class="fa-solid fa-key"></i></span>
+                <span>Change Password</span>
+              </button>
+            </div>
+          </div>
+
+          <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);letter-spacing:.1em;margin-bottom:12px;">ACCOUNT APPEARANCE</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              <button id="themeToggleButton" class="btn btn-secondary theme-toggle-btn" type="button" style="flex:0 0 auto;min-width:140px;">
+                <span class="theme-toggle-icon"><i class="fa-solid fa-moon"></i></span>
+                <span class="theme-button-label">Dark Mode</span>
+              </button>
+              <div style="flex:1;min-width:180px;font-size:13px;color:var(--text-dim);">
+              </div>
             </div>
           </div>
 
