@@ -6,6 +6,11 @@ const createAccountForm = document.getElementById('create-account-form');
 const loginMessageEl    = document.getElementById('message');
 const createMessageEl   = document.getElementById('create-message');
 
+if (new URLSearchParams(window.location.search).get('verified') === '1') {
+  alert('Email verified! You can now log in.');
+}
+
+
 function showMessage(el, text, type) {
     el.textContent = text;
     el.className = 'logon-message ' + type;

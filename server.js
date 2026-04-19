@@ -3,6 +3,8 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { sendVerificationEmail } = require('./public/js/mailer');
 
 const app = express();
 const port = 3000;
@@ -102,16 +104,22 @@ app.post('/api/create-account', async (req, res) => {
 
     try {
         const connection = await createConnection();
-        const hashedPassword = await bcrypt.hash(password, 10);  // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const verificationToken = crypto.randomBytes(32).toString('hex');
 
-        const [result] = await connection.execute(
-            'INSERT INTO user (email, password) VALUES (?, ?)',
-            [email, hashedPassword]
+        await connection.execute(
+            'INSERT INTO user (email, password, verification_token) VALUES (?, ?, ?)',
+            [email, hashedPassword, verificationToken]
         );
 
-        await connection.end();  // Close connection
+        await connection.end();
 
-        res.status(201).json({ message: 'Account created successfully!' });
+        // Send email non-blocking — don't fail registration if mail fails
+        sendVerificationEmail(email, verificationToken).catch(err =>
+            console.error('Verification email failed:', err)
+        );
+
+        res.status(201).json({ message: 'Account created! Please check your email to verify.' });
     } catch (error) {
         if (error.code === 'ER_DUP_ENTRY') {
             res.status(409).json({ message: 'An account with this email already exists.' });
@@ -119,6 +127,55 @@ app.post('/api/create-account', async (req, res) => {
             console.error(error);
             res.status(500).json({ message: 'Error creating account.' });
         }
+    }
+});
+
+app.get('/api/auth/verify-email', async (req, res) => {
+    const { token } = req.query;
+    if (!token) return res.status(400).send('Missing token.');
+
+    try {
+        const connection = await createConnection();
+        const [rows] = await connection.execute(
+            'SELECT email FROM user WHERE verification_token = ?',
+            [token]
+        );
+
+        if (rows.length === 0) {
+            await connection.end();
+            return res.status(400).send('Invalid or expired verification link.');
+        }
+
+        await connection.execute(
+            'UPDATE user SET email_verified = 1, verification_token = NULL WHERE verification_token = ?',
+            [token]
+        );
+
+        await connection.end();
+        res.redirect('/?verified=1');
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Verification failed. Please try again.');
+    }
+});
+
+app.post('/api/auth/resend-verification', authenticateToken, async (req, res) => {
+    try {
+        const token = crypto.randomBytes(32).toString('hex');
+        const connection = await createConnection();
+
+        await connection.execute(
+            'UPDATE user SET verification_token = ? WHERE email = ?',
+            [token, req.user.email]
+        );
+
+        await connection.end();
+
+        await sendVerificationEmail(req.user.email, token);
+        res.status(200).json({ message: 'Verification email sent.' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error sending verification email.' });
     }
 });
 
@@ -186,14 +243,14 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     try {
         const connection = await createConnection();
         const [rows] = await connection.execute(
-            'SELECT email FROM user WHERE email = ?',
+            'SELECT email, email_verified FROM user WHERE email = ?',
             [req.user.email]
         );
         await connection.end();
         if (rows.length === 0) {
             return res.status(404).json({ message: 'User not found.' });
         }
-        res.status(200).json({ email: rows[0].email });
+        res.status(200).json({ email: rows[0].email, email_verified: !!rows[0].email_verified });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error retrieving profile.' });

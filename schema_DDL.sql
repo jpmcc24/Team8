@@ -1,7 +1,9 @@
 -- Database Schema
 CREATE TABLE user (
     email VARCHAR(255) PRIMARY KEY,
-    password VARCHAR(255) NOT NULL
+    password VARCHAR(255) NOT NULL,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    verification_token VARCHAR(255)
 );
 
 CREATE TABLE vehicles (

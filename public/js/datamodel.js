@@ -10,9 +10,10 @@ const DataModel = (function () {
     //WE CAN STORE DATA HERE SO THAT WE DON'T HAVE TO FETCH IT
     //EVERY TIME WE NEED IT.  THIS IS CALLED "CACHING".
     let token = null;
+    
 
     // Internal helper that handles all fetch calls.
-    // Redirects to login on 401/403; throws on other errors.
+    // Redirects to logirn on 401/403; throws on other errors.
     async function request(method, path, body) {
         if (!token) {
             console.error('Token is not set.');
@@ -153,6 +154,12 @@ const DataModel = (function () {
         },
         deleteAccount: async function () {
             return request('DELETE', '/api/account');
+        },
+        sendVerificationEmail: async function () {
+            return request('POST', '/api/account/verify-email');
+        },
+        resendVerification: async function () {
+            return request('POST', '/api/auth/resend-verification');
         },
     };
 })();
