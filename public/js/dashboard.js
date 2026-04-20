@@ -3355,6 +3355,23 @@ function init() {
       renderCostChart();
       renderFuelLog();
       renderMaintenanceLog();
+DataModel.getCurrentUser().then(function(user) {
+  if (user && !user.email_verified) {
+    showToast('Please verify your email address. Check your inbox.', 'info');
+    // Optionally inject a persistent banner:
+    var banner = document.createElement('div');
+    banner.style.cssText = 'background:#c8a96e;color:#000;text-align:center;padding:10px 16px;font-size:13px;font-weight:600;';
+    banner.innerHTML = '⚠ Your email is not verified. <a href="#" id="resendVerify" style="color:#000;text-decoration:underline;">Resend verification email</a>';
+    document.querySelector('.main-content').prepend(banner);
+
+    document.getElementById('resendVerify').addEventListener('click', function(e) {
+      e.preventDefault();
+      DataModel.resendVerification().then(function() {
+        showToast('Verification email resent!', 'success');
+      });
+    });
+  }
+});
 
       var subEl = qs('#pageSubtitle');
       if (subEl) subEl.textContent = VIEW_CONFIG.dashboard.subtitle();
